@@ -1,1 +1,903 @@
-a
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "Script Do Lapo",
+   Icon = 0, -- Icon in Topbar. Can use Lucide Icons (string) or Roblox Image (number). 0 to use no icon (default).
+   LoadingTitle = "Script Do Lapo",
+   LoadingSubtitle = "by Luvwas (Lapo Confia)",
+   Theme = "Default", -- Check https://docs.sirius.menu/rayfield/configuration/themes
+
+   DisableRayfieldPrompts = false,
+   DisableBuildWarnings = false, -- Prevents Rayfield from warning when the script has a version mismatch with the interface
+
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = nil, -- Create a custom folder for your hub/game
+      FileName = "Big Hub"
+   },
+
+   Discord = {
+      Enabled = false, -- Prompt the user to join your Discord server if their executor supports it
+      Invite = "noinvitelink", -- The Discord invite code, do not include discord.gg/. E.g. discord.gg/ ABCD would be ABCD
+      RememberJoins = true -- Set this to false to make them join the discord every time they load it up
+   },
+
+   KeySystem = false, -- Set this to true to use our key system
+   KeySettings = {
+      Title = "Untitled",
+      Subtitle = "Key System",
+      Note = "No method of obtaining the key is provided", -- Use this to tell the user how to get a key
+      FileName = "Key", -- It is recommended to use something unique as other scripts using Rayfield may overwrite your key file
+      SaveKey = true, -- The user's key will be saved, but if you change the key, they will be unable to use your script
+      GrabKeyFromSite = false, -- If this is true, set Key below to the RAW site you would like Rayfield to get the key from
+      Key = {"Hello"} -- List of keys that will be accepted by the system, can be RAW file links (pastebin, github etc) or simple strings ("hello","key22")
+   }
+})
+
+local MISCTab = Window:CreateTab("Misc","badge") 
+
+local Section = MISCTab:CreateSection("Misc")
+
+local buying = false
+
+local Toggle = MISCTab:CreateToggle({
+   Name = "Auto Buy Dragon Medal",
+   CurrentValue = false,
+   Flag = "AutoBuyDragonMedal",
+   Callback = function(Value)
+       buying = Value
+       while buying do
+           local args = {
+               [1] = "Dragon Medal",
+               [2] = "RagnaTrader"
+           }
+
+           game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("BuyItem"):InvokeServer(unpack(args))
+           task.wait(0.0000001) 
+       end
+   end,
+})
+
+local buyingPhantomMark = false
+
+local Toggle = MISCTab:CreateToggle({
+   Name = "Auto Buy Phantom Mark",
+   CurrentValue = false,
+   Flag = "AutoBuyPhantomMark",
+   Callback = function(Value)
+       buyingPhantomMark = Value
+       while buyingPhantomMark do
+           local args = {
+               [1] = "Phantom Mark",
+               [2] = "Phantom"
+           }
+
+           game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("BuyItem"):InvokeServer(unpack(args))
+           task.wait(0.0000001)
+       end
+   end,
+})
+
+local Tab = Window:CreateTab("Sub Quests", "cross")
+local Section = Tab:CreateSection("Quests")
+
+local makotoQuests = {
+    {Name = "Makoto Quest I", Trigger = "Execution Quest I"},
+    {Name = "Makoto Quest II", Trigger = "Execution Quest II"},
+    {Name = "Makoto Quest III", Trigger = "Execution Quest III"},
+    {Name = "Makoto Quest IV", Trigger = "Execution Quest IV"},
+    {Name = "Makoto Quest V", Trigger = "Execution Quest V"},
+    {Name = "Makoto Quest VI", Trigger = "Execution Quest VI"}
+}
+local selectedMakotoQuest = makotoQuests[1].Trigger
+
+local makotoOptions = {}
+for _, quest in ipairs(makotoQuests) do
+    table.insert(makotoOptions, quest.Name)
+end
+
+local QuestDropdown = Tab:CreateDropdown({
+    Name = "Execution Quest (Makoto)",
+    SectionParent = Section,
+    Options = makotoOptions,
+    CurrentOption = makotoOptions[1],
+    MultipleOptions = false,
+    Flag = "SelectedExecutionQuest",
+    Callback = function(option)
+        local selectedName = option[1]
+        for _, quest in ipairs(makotoQuests) do
+            if quest.Name == selectedName then
+                selectedMakotoQuest = quest.Trigger
+                break
+            end
+        end
+    end
+})
+
+local QuestButton = Tab:CreateButton({
+    Name = "Start Selected Makoto Quest",
+    SectionParent = Section,
+    Callback = function()
+        print("Starting Makoto Quest:", selectedMakotoQuest)
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("GetSideQuest"):FireServer(selectedMakotoQuest)
+    end
+})
+
+local foolQuests = {
+    {Name = "Joker Quest I", Trigger = "Persona5_TheFool_1"},
+    {Name = "Joker Quest II", Trigger = "Persona5_TheFool_2"},
+    {Name = "Joker Quest III", Trigger = "Persona5_TheFool_3"},
+    {Name = "Joker Quest IV", Trigger = "Persona5_TheFool_4"},
+    {Name = "Joker Quest V", Trigger = "Persona5_TheFool_5"}
+}
+local selectedFoolQuest = foolQuests[1].Trigger
+
+local foolOptions = {}
+for _, quest in ipairs(foolQuests) do
+    table.insert(foolOptions, quest.Name)
+end
+
+local FoolDropdown = Tab:CreateDropdown({
+    Name = "The Fool (Joker)",
+    SectionParent = Section,
+    Options = foolOptions,
+    CurrentOption = foolOptions[1],
+    MultipleOptions = false,
+    Flag = "SelectedFoolQuest",
+    Callback = function(option)
+        local selectedName = option[1]
+        for _, quest in ipairs(foolQuests) do
+            if quest.Name == selectedName then
+                selectedFoolQuest = quest.Trigger
+                break
+            end
+        end
+    end
+})
+
+local FoolButton = Tab:CreateButton({
+    Name = "Start Selected Joker Quest",
+    SectionParent = Section,
+    Callback = function()
+        print("Starting Joker Quest:", selectedFoolQuest)
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("GetSideQuest"):FireServer(selectedFoolQuest)
+    end
+})
+
+local copycatQuests = {
+    {Name = "Nagumo Quest I", Trigger = "The Copycat Assassin"},
+    {Name = "Nagumo Quest II", Trigger = "The Copycat Assassin II"}
+}
+local selectedCopycatQuest = copycatQuests[1].Trigger
+
+local copycatOptions = {}
+for _, quest in ipairs(copycatQuests) do
+    table.insert(copycatOptions, quest.Name)
+end
+
+local CopycatDropdown = Tab:CreateDropdown({
+    Name = "Copycat Assassin Quest (Nagumo)",
+    SectionParent = Section,
+    Options = copycatOptions,
+    CurrentOption = copycatOptions[1],
+    MultipleOptions = false,
+    Flag = "SelectedCopycatQuest",
+    Callback = function(option)
+        local selectedName = option[1]
+        for _, quest in ipairs(copycatQuests) do
+            if quest.Name == selectedName then
+                selectedCopycatQuest = quest.Trigger
+                break
+            end
+        end
+    end
+})
+
+local CopycatButton = Tab:CreateButton({
+    Name = "Start Selected Nagumo Quest",
+    SectionParent = Section,
+    Callback = function()
+        print("Starting Copycat Quest:", selectedCopycatQuest)
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("GetSideQuest"):FireServer(selectedCopycatQuest)
+    end
+})
+
+-- Other Side Quests with display names and triggers
+local otherSideQuests = {
+    {Name = "Saitama Quest", Trigger = "The Hero For Fun"},
+    {Name = "Pucci Quest", Trigger = "The Spirit Warrior"},
+    {Name = "Moss King Quest", Trigger = "The Traitor"}
+}
+local selectedOtherSideQuest = otherSideQuests[1].Trigger
+
+local otherSideOptions = {}
+for _, quest in ipairs(otherSideQuests) do
+    table.insert(otherSideOptions, quest.Name)
+end
+
+local OtherSideQuestDropdown = Tab:CreateDropdown({
+    Name = "Other Side Quests",
+    SectionParent = Section,
+    Options = otherSideOptions,
+    CurrentOption = otherSideOptions[1],
+    MultipleOptions = false,
+    Flag = "SelectedOtherSideQuest",
+    Callback = function(option)
+        local selectedName = option[1]
+        for _, quest in ipairs(otherSideQuests) do
+            if quest.Name == selectedName then
+                selectedOtherSideQuest = quest.Trigger
+                break
+            end
+        end
+    end
+})
+
+local OtherSideQuestButton = Tab:CreateButton({
+    Name = "Start Selected Other Side Quest",
+    SectionParent = Section,
+    Callback = function()
+        print("Starting Other Side Quest:", selectedOtherSideQuest)
+        game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("GetSideQuest"):FireServer(selectedOtherSideQuest)
+    end
+})
+
+local LimitBreakTab = Window:CreateTab("Limit Breaks", "angry")
+local Section = LimitBreakTab:CreateSection("Limit Break (1 Click = Max Limit Break)")
+
+local units = {
+    "Vending Machine",
+    "Stone Doctor",
+    "Shining Star Idol",
+    "Investigator",
+    "Denis",
+    "Ultimis",
+    "Capsule Girl",
+    "Shielder",
+    "Peem"
+}
+
+local selectedUnit = units[1]
+local selectedTimes = 1
+
+local SelectionLabel = LimitBreakTab:CreateLabel("Selected: " .. selectedUnit .. " x" .. selectedTimes)
+
+local UnitDropdown = LimitBreakTab:CreateDropdown({
+    Name = "Select Unit",
+    SectionParent = Section,
+    Options = units,
+    CurrentOption = units[1],
+    MultipleOptions = false,
+    Flag = "LimitBreakUnit",
+    Callback = function(option)
+        selectedUnit = option[1]
+        SelectionLabel:Set("Selected: " .. selectedUnit .. " x" .. selectedTimes)
+    end
+})
+
+local timesOptions = {"1", "2", "3", "4", "5"}
+local TimesDropdown = LimitBreakTab:CreateDropdown({
+    Name = "Limit Break Times",
+    SectionParent = Section,
+    Options = timesOptions,
+    CurrentOption = timesOptions[1],
+    MultipleOptions = false,
+    Flag = "LimitBreakTimes",
+    Callback = function(option)
+        selectedTimes = tonumber(option[1]) or 1
+        SelectionLabel:Set("Selected: " .. selectedUnit .. " x" .. selectedTimes)
+    end
+})
+
+local BreakButton = LimitBreakTab:CreateButton({
+    Name = "Start Limit Break",
+    SectionParent = Section,
+    Callback = function()
+        for i = 1, selectedTimes do
+            local args = {
+                [1] = selectedUnit
+            }
+            local success, err = pcall(function()
+                game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("LimitBreak"):InvokeServer(unpack(args))
+            end)
+            if not success then
+                warn("Failed to limit break:", err)
+            end
+            wait(0.1)
+        end
+    end
+})
+
+local BannerTab = Window:CreateTab("Banner", "layers")
+local Section = BannerTab:CreateSection("1x or 10x Spin Mode")
+
+local banners = {
+    { Name = "Beginning Adventurers" },
+    { Name = "Beyond Imagination" },
+    { Name = "Demon Hunt" },
+    { Name = "Rise Of Heros" },
+    { Name = "World Legacy" },
+    { Name = "Ultimate Warrior" },
+    { Name = "Soul Banner With Puzzles" },
+    { Name = "Stardust Crusader" }
+}
+
+local selectedBanner = banners[1]
+local spinAmount = 1
+
+local RequirementLabel = BannerTab:CreateLabel("Requirement: Requires Puzzle")
+
+local BannerDropdown = BannerTab:CreateDropdown({
+    Name = "Select Banner",
+    SectionParent = Section,
+    Options = (function()
+        local arr = {}
+        for _, b in ipairs(banners) do
+            table.insert(arr, b.Name)
+        end
+        return arr
+    end)(),
+    CurrentOption = { banners[1].Name },
+    MultipleOptions = false,
+    Flag = "BannerDropdown",
+    Callback = function(option)
+        local selectedName
+        if type(option) == "table" then
+            selectedName = option[1]
+        else
+            selectedName = option
+        end
+
+        for _, banner in ipairs(banners) do
+            if banner.Name == selectedName then
+                selectedBanner = banner
+                break
+            end
+        end
+        RequirementLabel:Set("Requirement: Requires Puzzle")
+    end
+})
+
+local SpinDropdown = BannerTab:CreateDropdown({
+    Name = "Spin Mode",
+    SectionParent = Section,
+    Options = { "1x", "10x" },
+    CurrentOption = { "1x" },
+    MultipleOptions = false,
+    Flag = "SpinModeDropdown",
+    Callback = function(option)
+        local spinStr
+        if type(option) == "table" then
+            spinStr = option[1]
+        else
+            spinStr = option
+        end
+
+        spinAmount = (spinStr == "1x") and 1 or 10
+    end
+})
+
+local RollButton = BannerTab:CreateButton({
+    Name = "Roll Banner",
+    SectionParent = Section,
+    Callback = function()
+        local args = {
+            [1] = spinAmount,
+            [2] = selectedBanner.Name
+        }
+        local success, err = pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Gacha"):InvokeServer(unpack(args))
+        end)
+        if not success then
+            warn("Failed to roll banner:", err)
+        end
+    end
+})
+
+local EBannerTab = Window:CreateTab("Event Banner", "layers")
+local Section = EBannerTab:CreateSection("Banner Rolling")
+
+local eventBanners = {
+    {
+        Name = "Dream Banner",
+        Type = "Gacha",
+        Triggers = { [1] = "Dream Banner", [2] = "Dream Banner" },
+        Requirement = "Puzzles"
+    },
+    {
+        Name = "Halloween Event",
+        Type = "BuyItem",
+        Triggers = { [1] = "HalloweenGacha", [2] = "Halloween10Gacha" },
+        Vendor = "Peem",
+        Requirement = "Requires Candy"
+    },
+    {
+        Name = "Chrollo Banner",
+        Type = "BuyItem",
+        Triggers = { [1] = "Phantom1Unit", [2] = "Phantom10Unit" },
+        Vendor = "Phantom",
+        Requirement = "Requires Phantom Mark"
+    },
+    {
+        Name = "Summer Event",
+        Type = "BuyItem",
+        Triggers = { [1] = "SummerGacha", [2] = "Summer10Gacha" },
+        Vendor = "Peem",
+        Requirement = "Requires Primal Sea"
+    },
+    {
+        Name = "Christmas Event",
+        Type = "Gacha",
+        Triggers = { [1] = "Christmas Event", [2] = "Christmas Event" },
+        Requirement = "Puzzles"
+    },
+    {
+        Name = "Ragna Event Units",
+        Type = "BuyItem",
+        Triggers = { [1] = "Dragon1Unit", [2] = "Dragon1Unit" },
+        Vendor = "RagnaTrader",
+        Requirement = "Requires Dragon Medal"
+    },
+    {
+        Name = "Valentine Event",
+        Type = "Gacha",
+        Triggers = { [1] = "Valentine Event", [2] = "Valentine Event" },
+        Requirement = "Puzzles"
+    },
+    {
+        Name = "Magical Girl Event",
+        Type = "BuyItem",
+        Triggers = { [1] = "Summon Unit", [2] = "Summon Unit" },
+        Vendor = "Magical Girl",
+        Requirement = "Requires Magical Token"
+    },
+    {
+        Name = "April Fool's Event",
+        Type = "Gacha",
+        Triggers = { [1] = "AprilFool", [2] = "AprilFool" },
+        Requirement = "Requires Cursed Doll"
+    },
+    {
+        Name = "New Years Banner",
+        Type = "Gacha",
+        Triggers = { [1] = "New Year Banner", [2] = "New Year Banner" },
+        Requirement = "Puzzle"
+    },
+    {
+        Name = "Anniversary Banner",
+        Type = "Gacha",
+        Triggers = { [1] = "Aniversary Banner", [2] = "Aniversary Banner" },
+        Requirement = "Puzzle"
+    },
+    {
+    Name = "Legendary Festival",
+    Type = "Gacha",
+    Triggers = { [1] = "Legend Festival", [2] = "Legend Festival" },
+    Requirement = "Puzzle"
+    },
+    {
+        Name = "Ragna Event Skins (10)",
+        Type = "BuyItem",
+        Triggers = { [1] = "Ester 10 Skins", [2] = "Ester 10 Skins" },
+        Vendor = "RagnaTrader",
+        Requirement = "Requires Dragon Medal"
+    },
+}
+
+local eventBannerNames = {}
+for _, b in ipairs(eventBanners) do
+    table.insert(eventBannerNames, b.Name)
+end
+
+local selectedBanner = eventBanners[1]
+local spinAmount = 1
+local rolling = false
+
+local RequirementLabel = EBannerTab:CreateLabel("Requirement: " .. selectedBanner.Requirement)
+
+local BannerDropdown = EBannerTab:CreateDropdown({
+    Name = "Select Banner",
+    SectionParent = Section,
+    Options = eventBannerNames,
+    CurrentOption = {eventBannerNames[1]},
+    MultipleOptions = false,
+    Flag = "BannerSelect",
+    Callback = function(option)
+        local selectedName = type(option) == "table" and option[1] or option
+        for _, b in ipairs(eventBanners) do
+            if b.Name == selectedName then
+                selectedBanner = b
+                RequirementLabel:Set("Requirement: " .. b.Requirement)
+                break
+            end
+        end
+    end
+})
+
+local SpinDropdown = EBannerTab:CreateDropdown({
+    Name = "Spin Mode",
+    SectionParent = Section,
+    Options = {"1x", "10x"},
+    CurrentOption = {"1x"},
+    MultipleOptions = false,
+    Flag = "SpinMode",
+    Callback = function(option)
+        spinAmount = (option[1] == "10x") and 2 or 1
+    end
+})
+
+EBannerTab:CreateToggle({
+    Name = "Auto Roll Selected Banner",
+    SectionParent = Section,
+    CurrentValue = false,
+    Flag = "AutoEventBanner",
+    Callback = function(value)
+        rolling = value
+        if rolling then
+            task.spawn(function()
+                while rolling do
+                    local trigger = selectedBanner.Triggers[spinAmount]
+                    if selectedBanner.Type == "Gacha" then
+                        pcall(function()
+                            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("Gacha"):InvokeServer(
+                                spinAmount == 1 and 1 or 10,
+                                trigger
+                            )
+                        end)
+                    elseif selectedBanner.Type == "BuyItem" then
+                        pcall(function()
+                            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("BuyItem"):InvokeServer(
+                                trigger,
+                                selectedBanner.Vendor
+                            )
+                        end)
+                    end
+                    task.wait(2)
+                end
+            end)
+        end
+    end
+})
+
+local OTPTab = Window:CreateTab("Teleport Stages", "waves") 
+
+local Section = OTPTab:CreateSection("Stages")
+
+local stages = {
+    {DisplayName = "Dragon Kingdom", Trigger = "Dragon Kingdom"},
+    {DisplayName = "Crossover City", Trigger = "Crossover City"},
+    {DisplayName = "Valentine Kingdom", Trigger = "Valentine Kingdom"},
+    {DisplayName = "Shadow Realm II", Trigger = "Shadow Realm II"},
+    {DisplayName = "Phantom Parade", Trigger = "Phantom Parade"},
+    {DisplayName = "Fishman Island", Trigger = "Fishman Island"},
+    {DisplayName = "Christmas Mansion", Trigger = "Christmas Mansion"},
+    {DisplayName = "Halloween Town", Trigger = "Halloween Town"},
+    {DisplayName = "Execution Base", Trigger = "Execution Base"},
+    {DisplayName = "Kujaku House", Trigger = "Kujaku House"},
+    {DisplayName = "Pinky Island", Trigger = "Pinky Island"},
+    {DisplayName = "Forbidden Graveyard", Trigger = "Forbidden Graveyard"},
+    {DisplayName = "Dessert Witch", Trigger = "Dessert Witch"},
+}
+
+local difficulties = {"Normal", "Hard", "Insane", "Nightmare", "Master"}
+
+local selectedStageTrigger = stages[1].Trigger
+local selectedDifficulty = difficulties[1]
+
+local DifficultyDropdown = OTPTab:CreateDropdown({
+    Name = "Difficulties",
+    Options = difficulties,
+    CurrentOption = {difficulties[1]},
+    MultipleOptions = false,
+    Flag = "DifficultySelect",
+    Callback = function(option)
+        selectedDifficulty = option[1]
+    end,
+})
+local stageNames = {}
+for _, stage in ipairs(stages) do
+    table.insert(stageNames, stage.DisplayName)
+end
+
+local StageDropdown = OTPTab:CreateDropdown({
+    Name = "Stage",
+    Options = stageNames,
+    CurrentOption = {stageNames[1]},
+    MultipleOptions = false,
+    Flag = "StageSelect",
+    Callback = function(option)
+        local selectedName = option[1]
+        for _, stage in ipairs(stages) do
+            if stage.DisplayName == selectedName then
+                selectedStageTrigger = stage.Trigger
+                break
+            end
+        end
+    end,
+})
+
+local CreateButton = OTPTab:CreateButton({
+    Name = "Create",
+    Callback = function()
+        local args = {
+            [1] = {
+                ["StageSelect"] = selectedStageTrigger,
+                ["Image"] = "rbxassetid://9617217504",  -- keep fixed or customize per stage later
+                ["FriendOnly"] = false,
+                ["Difficult"] = selectedDifficulty
+            }
+        }
+
+        local success, err = pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("CreateRoom"):FireServer(unpack(args))
+        end)
+
+        if not success then
+            warn("CreateRoom failed:", err)
+        end
+    end,
+})
+
+local ABYSSTab = Window:CreateTab("Abyss","crown")
+
+local Section = ABYSSTab:CreateSection("Teleport Abyss")
+
+local abyssOptions = {}
+for i = 1, 75 do
+    table.insert(abyssOptions, "Abyss_" .. i)
+end
+
+local selectedAbyss = abyssOptions[1]
+
+local Dropdown1 = ABYSSTab:CreateDropdown({
+    Name = "Select Your Abyss",
+    Options = abyssOptions,
+    CurrentOption = {selectedAbyss},
+    MultipleOptions = false,
+    Flag = "ABYSSNUMBER",
+    Callback = function(Options)
+        selectedAbyss = Options[1]
+    end,
+})
+
+local Button = ABYSSTab:CreateButton({
+    Name = "Teleport To Abyss #",
+    Callback = function()
+        local args = {
+            [1] = selectedAbyss
+        }
+
+        game:GetService("ReplicatedStorage").Remote.TeleportToStage:FireServer(unpack(args))
+    end,
+})
+
+local TRAITSTab = Window:CreateTab("Trait","refresh-ccw")
+
+local Section = TRAITSTab:CreateSection("Trait Roll")
+
+-- Label to show the current rolled trait (placed first to appear on top)
+local CurrentTraitLabel = TRAITSTab:CreateLabel("Current Rolled Trait: None")
+
+local Dropdown4 = TRAITSTab:CreateDropdown({
+   Name = "Select Your Traits",
+   Options = {"Strength","Swiftness","Precision","Entrepreneur","Deadeye","Berserk","Golden","Giant Slayer","Elementalist","Momentum","Bounty Hunt","Dark Summoner","Streamliner","The Honored One","Arcanist","The Fallen One","Survivor","Divine Treasure"},
+   CurrentOption = {"Strength"},
+   MultipleOptions = true,
+   Flag = "TRAITSDROPdown",
+   Callback = function()
+   end,
+})
+
+local Input = TRAITSTab:CreateInput({
+   Name = "Enter Your Unit Name",
+   CurrentValue = "",
+   PlaceholderText = ":)",
+   RemoveTextAfterFocusLost = false,
+   Flag = "TRAITSUNIT",
+   Callback = function(Text)
+   end,
+})
+
+local Toggle = TRAITSTab:CreateToggle({
+   Name = "Start Rolling",
+   CurrentValue = false,
+   Flag = "TRAITSSTOGLE",
+   Callback = function(Value)
+      if Value then
+         local selectedTraits = Dropdown4.CurrentOption
+         local unitName = Input.CurrentValue
+
+         local rolling = true
+         while rolling do
+            local args = {
+               [1] = "Random",
+               [2] = unitName
+            }
+
+            local randomTrait = game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("traitRemote"):InvokeServer(unpack(args))
+
+            if type(randomTrait) == "table" then
+               randomTrait = randomTrait[1]
+            end
+
+            if type(randomTrait) == "string" then
+               CurrentTraitLabel:Set("Current Rolled Trait: " .. randomTrait)
+
+               if table.find(selectedTraits, randomTrait) then
+                  print("Trait matched: " .. randomTrait)
+                  rolling = false
+               else
+                  print("Rolled trait: " .. randomTrait .. " (not a match, continuing...)")
+               end
+            else
+               CurrentTraitLabel:Set("Error: Unexpected trait result")
+               print("Error: randomTrait is not a string. It is of type: " .. type(randomTrait))
+               rolling = false 
+            end
+
+            task.wait(1)
+         end
+      else
+         CurrentTraitLabel:Set("Current Rolled Trait: None")
+      end
+   end,
+})
+
+local SKINSTab = Window:CreateTab("Skins","shirt")
+local Section = SKINSTab:CreateSection("Choose Your Skin")
+
+
+local SkinCosts = {
+   -- Secret Rares
+   ["RedArcher [Girl]"] = 2000,
+   ["Cat Spirit [Micaa]"] = 1500,
+   ["DarkHollow [Beyond]"] = 3000,
+   ["King of Heroes [Girl]"] = 3000,
+   ["King of Heroes [Mecha]"] = 3000,
+   ["Shining Star Idol [Deer]"] = 3000,
+   ["Gambling Sorcerer [Mudae]"] = 3000,
+   ["Lorelei [Shark]"] = 3000,
+   ["Angelic Dragon [Beat]"] = 3000,
+   ["Kira [Goth]"] = 3000,
+
+   -- Legend Rares
+   ["CapsuleGirl [Gamer]"] = 1200,
+   ["Investigator [Gamer]"] = 1200,
+   ["Ramen Guy [SixPath]"] = 1200,
+   ["Shining Star Idol [Idol[Flower]]"] = 1200,
+   ["Shining Star Idol [Idol Child[LR]]"] = 1200,
+   ["Shining Star Idol [Virtual Idol]"] = 1200,
+   ["Shining Star Idol [New Year Flower]"] = 1200,
+   ["The World [Maid]"] = 1200,
+   ["Besto Friendo [Idol]"] = 1200,
+   ["Manala [Angle]"] = 1200,
+   ["Vizard Captain [Beyond]"] = 1200,
+   ["King of Knights [Lion]"] = 1200,
+   ["Blood Queen [Dress]"] = 1200,
+   ["White Uchigo [Anniversary]"] = 1200,
+   ["Uchigo[Dangai] [Anniversary]"] = 1200,
+   ["Lightning Amber [Roboko]"] = 1200,
+   ["Kosuke [Anniversary]"] = 1200,
+   ["Charuto [Anniversary]"] = 1200,
+   ["Nightmare [Young]"] = 1200,
+   ["Nightmare [Wedding]"] = 1200,
+   ["Soul Traitor [Captain]"] = 1200,
+   ["Lightning Amber [Girl]"] = 1200,
+   ["HolyKnight Almer [StoryShift]"] = 1200,
+   ["Ultimate Kawaii [Paint]"] = 1200,
+   ["Sea Princess [Rina]"] = 1200,
+   ["Maky [Doki]"] = 1200,
+   ["Peem [Gally]"] = 1200,
+   ["Shining Star Idol [Russian]"] = 1200,
+   ["King of Knights [Exalt]"] = 1200,
+   ["Guns Magica [Evil]"] = 1200,
+   ["War Devil [Mis]"] = 1200,
+   ["Reaper Gunslinger [Bill]"] = 1200,
+   ["Shining Star Idol [Roll]"] = 1500,
+   ["Visionary [Battle]"] = 1500,
+   ["The Weakest [Unlimited]"] = 1500,
+   ["Koji [Chef]"] = 1500,
+
+   -- Ultra Rares
+   ["Tamer Suguro [Drip]"] = 600,
+   ["King of Knights [Maid]"] = 600,
+   ["Hoku[100%] [Inferno]"] = 600,
+   ["VirtualSwordman [Movie]"] = 600,
+   ["Lobos [Beyond]"] = 600,
+   ["Grand Reaper [Old]"] = 600,
+   ["Kongkun [False]"] = 600,
+   ["Purgatory [Girl]"] = 600,
+   ["Sanjiro [Girl]"] = 600,
+   ["Misuko [Slayer]"] = 600,
+   ["Terrible Tornado [Rapure]"] = 600,
+   ["Ghost Speech [Zero]"] = 600,
+   ["Beauty Upper Moon [Human]"] = 600,
+   ["Ugly Upper Moon [Human]"] = 600,
+   ["Manala [Young]"] = 600,
+   ["Fire Revolutionist [Fire Bender]"] = 600,
+   ["Reaper Gunslinger [Red]"] = 600,
+   ["Reaper Gunslinger [Cowboy]"] = 600,
+   ["Judge Sorcerer [Phoenix]"] = 600,
+   ["Volcano Curse [Goat]"] = 800,
+   ["Muge [Peanut]"] = 800,
+   ["Unlimited [Plushie]"] = 800,
+}
+
+local SkinRarity = {}
+for name, cost in pairs(SkinCosts) do
+   if cost >= 3000 then
+      SkinRarity[name] = "Secret Rare"
+   elseif cost >= 1200 then
+      SkinRarity[name] = "Legend Rare"
+   else
+      SkinRarity[name] = "Ultra Rare"
+   end
+end
+
+local SkinMaterial = {}
+for name, _ in pairs(SkinCosts) do
+   SkinMaterial[name] = "Gem"
+end
+
+-- Labels for cost, rarity, and material
+local CostLabel = SKINSTab:CreateLabel("Skin Cost: -")
+local RarityLabel = SKINSTab:CreateLabel("Skin Rarity: -")
+local MaterialLabel = SKINSTab:CreateLabel("Skin Material: -")
+
+-- Track selected skin
+local SelectedSkin = nil
+
+-- Generate sorted list of skin names
+local SkinNames = {}
+for name in pairs(SkinCosts) do
+   table.insert(SkinNames, name)
+end
+table.sort(SkinNames)
+
+-- Dropdown
+local Dropdown4 = SKINSTab:CreateDropdown({
+   Name = "Select Your Skin",
+   Options = SkinNames,
+   CurrentOption = {},
+   MultipleOptions = false,
+   Flag = "SKINDROPDOWN",
+   Callback = function(Options)
+      if #Options > 0 then
+         SelectedSkin = Options[1]
+         local cost = SkinCosts[SelectedSkin] or "?"
+         local rarity = SkinRarity[SelectedSkin] or "Unknown"
+         local material = SkinMaterial[SelectedSkin] or "Unknown"
+
+         CostLabel:Set("Skin Cost: " .. cost)
+         RarityLabel:Set("Skin Rarity: " .. rarity)
+         MaterialLabel:Set("Skin Material: " .. material)
+      else
+         SelectedSkin = nil
+         CostLabel:Set("Skin Cost: -")
+         RarityLabel:Set("Skin Rarity: -")
+         MaterialLabel:Set("Skin Material: -")
+      end   
+   end,
+})
+
+
+-- Buy Button
+local Button = SKINSTab:CreateButton({
+   Name = "Buy Selected Skin",
+   Callback = function()
+      if SelectedSkin then
+         local args = {
+            [1] = SelectedSkin
+         }
+
+         game:GetService("ReplicatedStorage"):WaitForChild("Remote"):WaitForChild("BuySkin"):InvokeServer(unpack(args))
+      else
+         Rayfield:Notify({
+            Title = "No Skin Selected",
+            Content = "Please select a skin before buying.",
+            Duration = 4,
+            Image = "alert-triangle",
+         })
+      end
+   end,
+})
