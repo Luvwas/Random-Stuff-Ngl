@@ -1,0 +1,662 @@
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local ProximityPromptService = game:GetService("ProximityPromptService")
+
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
+local Remote = ReplicatedStorage:WaitForChild("Remote")
+local Bindable = ReplicatedStorage:WaitForChild("Bindable")
+
+
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+
+local Config = {
+
+    AutoAttackEnabled = false,
+    AttackRange = 50,
+    AttackAllPets = true,
+    TeleportToEnemy = false,
+    TeleportDistance = 6,
+    SmoothTeleport = false,
+    
+    ProximityEnabled = false,
+    ProximityTeleport = true,
+    ProximityClickDelay = 0.3,
+    ProximityHoldTime = 0.5,
+    ProximityCheckInterval = 0.5,
+    
+    AutoSpam = false,
+    SpeedToggle = false,
+    WalkSpeed = 100
+}
+
+local currentTarget = nil
+local lastTeleportTime = 0
+local TeleportingTo = nil
+local lastProximityCheck = 0
+local processedPrompts = {}
+
+local mainConnection
+local proximityConnection
+local speedConnection
+local spamConnection
+
+-- ======================== FUNÇÕES UTILITÁRIAS ========================
+
+local function getSharedDistance()
+    return Config.AttackRange
+end
+
+local function smoothTeleport(targetPosition, callback)
+    if not (LocalPlayer.Character and LocalPlayer.Character.PrimaryPart) then 
+        if callback then callback() end
+        return 
+    end
+    
+    local humanoidRootPart = LocalPlayer.Character.PrimaryPart
+    local adjustedTarget = targetPosition + Vector3.new(0, 3, 0)
+    
+    TeleportingTo = adjustedTarget
+    
+    if Config.SmoothTeleport then
+        local distance = (adjustedTarget - humanoidRootPart.Position).Magnitude
+        local tweenTime = math.min(distance / 200, 1)
+        
+        local tweenInfo = TweenInfo.new(
+            tweenTime,
+            Enum.EasingStyle.Quint,
+            Enum.EasingDirection.Out
+        )
+        
+        local tween = TweenService:Create(
+            humanoidRootPart,
+            tweenInfo,
+            {CFrame = CFrame.new(adjustedTarget)}
+        )
+        
+        tween:Play()
+        tween.Completed:Connect(function()
+            TeleportingTo = nil
+            if callback then callback() end
+        end)
+    else
+        humanoidRootPart.CFrame = CFrame.new(adjustedTarget)
+        TeleportingTo = nil
+        if callback then callback() end
+    end
+end
+
+-- ======================== TRIAL FUNCTIONS ========================
+
+local function fireRemote(remoteName, args)
+    pcall(function()
+        ReplicatedStorage:WaitForChild("Remote"):WaitForChild(remoteName):FireServer(unpack(args))
+    end)
+end
+
+local function redeemCode(code)
+    pcall(function()
+        ReplicatedStorage:WaitForChild("Remote"):WaitForChild("RedeemCode"):InvokeServer(code)
+    end)
+end
+
+local function runSpam()
+    spamConnection = RunService.Heartbeat:Connect(function()
+        if not Config.AutoSpam then 
+            spamConnection:Disconnect()
+            return 
+        end
+        
+        -- Spam functions
+        fireRemote("UseItem", {"EasterDropsBoost"})
+        fireRemote("UpgradeArtefact", {"Drops"})
+        fireRemote("EquipArtefact", {"Drops", "CurrentArtefact"})
+        fireRemote("PrestigeArtefact", {"Drops"})
+        
+        task.wait(0.05)
+    end)
+end
+
+local function maintainSpeed()
+    speedConnection = RunService.Heartbeat:Connect(function()
+        if not Config.SpeedToggle then
+            speedConnection:Disconnect()
+            return
+        end
+        
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = Config.WalkSpeed
+        end
+    end)
+end
+
+-- ======================== AUTO ATTACK SYSTEM ========================
+
+local function findNearbyEnemies()
+    if not (LocalPlayer.Character and LocalPlayer.Character.PrimaryPart) then
+        return {}
+    end
+    
+    local playerPosition = LocalPlayer.Character.PrimaryPart.Position
+    local nearbyEnemies = {}
+    
+    for _, enemy in pairs(CollectionService:GetTagged("Attackable")) do
+        if enemy.PrimaryPart then
+            local distance = (enemy.PrimaryPart.Position - playerPosition).Magnitude
+            if distance <= getSharedDistance() then
+                table.insert(nearbyEnemies, {
+                    enemy = enemy,
+                    distance = distance
+                })
+            end
+        end
+    end
+    
+    table.sort(nearbyEnemies, function(a, b)
+        return a.distance < b.distance
+    end)
+    
+    return nearbyEnemies
+end
+
+local function isPetAttacking(pet)
+    return pet.Data.Attacking.Value ~= nil
+end
+
+local function getAvailablePets()
+    local pets = {}
+    local petsFolder = workspace:FindFirstChild("Pets")
+    
+    if petsFolder then
+        for _, pet in pairs(petsFolder:GetChildren()) do
+            if pet:FindFirstChild("Data") and 
+               pet.Data:FindFirstChild("Owner") and 
+               pet.Data.Owner.Value == LocalPlayer then
+                table.insert(pets, pet)
+            end
+        end
+    end
+    
+    return pets
+end
+
+local function calculateTeleportPosition(enemy)
+    if not (enemy and enemy.PrimaryPart) then return nil end
+    if not (LocalPlayer.Character and LocalPlayer.Character.PrimaryPart) then return nil end
+    
+    local enemyPosition = enemy.PrimaryPart.Position
+    local offset = Config.TeleportDistance
+    local angle = math.random() * math.pi * 2
+    
+    local offsetVector = Vector3.new(
+        math.cos(angle) * offset,
+        0,
+        math.sin(angle) * offset
+    )
+    
+    return enemyPosition + offsetVector
+end
+
+local function teleportToTarget(enemy)
+    if not Config.TeleportToEnemy then return end
+    if not (enemy and enemy.PrimaryPart) then return end
+    
+    local teleportPos = calculateTeleportPosition(enemy)
+    if teleportPos then
+        smoothTeleport(teleportPos)
+    end
+end
+
+local function autoAttackEnemies()
+    if not Config.AutoAttackEnabled then return end
+    if TeleportingTo then return end
+    
+    local nearbyEnemies = findNearbyEnemies()
+    if #nearbyEnemies == 0 then 
+        currentTarget = nil
+        return 
+    end
+    
+    local availablePets = getAvailablePets()
+    if #availablePets == 0 then return end
+    
+    if Config.AttackAllPets then
+        for i, pet in ipairs(availablePets) do
+            if not isPetAttacking(pet) and nearbyEnemies[i] then
+                local targetEnemy = nearbyEnemies[i].enemy
+                
+                if Config.TeleportToEnemy then
+                    teleportToTarget(targetEnemy)
+                    task.wait(0.1)
+                end
+                
+                pcall(function()
+                    Bindable.SendPet:Fire(targetEnemy, false, false)
+                end)
+                
+                break
+            end
+        end
+    else
+        local closestEnemy = nearbyEnemies[1].enemy
+        local freePet = nil
+        
+        for _, pet in ipairs(availablePets) do
+            if not isPetAttacking(pet) then
+                freePet = pet
+                break
+            end
+        end
+        
+        if freePet then
+            if Config.TeleportToEnemy then
+                teleportToTarget(closestEnemy)
+                task.wait(0.1)
+            end
+            
+            pcall(function()
+                Bindable.SendPet:Fire(closestEnemy, false, false)
+            end)
+        end
+    end
+end
+
+-- ======================== PROXIMITY PROMPT SYSTEM ========================
+
+local function shouldProcessPrompt(prompt)
+    if not Config.ProximityEnabled then return false end
+    if processedPrompts[prompt] then return false end
+    
+    local allowedTexts = {
+        "E", "Collect", "Open", "Interact", "Use", "Take", "Grab", "Pick up", "Enter", "Exit"
+    }
+    
+    local promptText = prompt.ActionText or prompt.ObjectText or ""
+    
+    if #allowedTexts == 0 then return true end
+    
+    for _, text in ipairs(allowedTexts) do
+        if string.find(promptText:lower(), text:lower()) then
+            return true
+        end
+    end
+    
+    return false
+end
+
+local function clickProximityPrompt(prompt)
+    if prompt.HoldDuration > 0 then
+        task.spawn(function()
+            local holdTime = math.max(prompt.HoldDuration, Config.ProximityHoldTime)
+            prompt:InputHoldBegin()
+            task.wait(holdTime)
+            prompt:InputHoldEnd()
+        end)
+    else
+        fireproximityprompt(prompt)
+    end
+    
+    processedPrompts[prompt] = tick()
+    task.wait(Config.ProximityClickDelay)
+    processedPrompts[prompt] = nil
+end
+
+local function processProximityPrompts()
+    if not Config.ProximityEnabled then return end
+    if TeleportingTo then return end
+    
+    local currentTime = tick()
+    if currentTime - lastProximityCheck < Config.ProximityCheckInterval then
+        return
+    end
+    lastProximityCheck = currentTime
+    
+    local character = LocalPlayer.Character
+    if not character or not character.PrimaryPart then return end
+    
+    local playerPosition = character.PrimaryPart.Position
+    local maxDistance = getSharedDistance()
+    
+    for _, obj in ipairs(workspace:GetPartBoundsInBox(character.PrimaryPart.CFrame, Vector3.new(maxDistance*2, maxDistance*2, maxDistance*2))) do
+        local prompt = obj:FindFirstChildOfClass("ProximityPrompt")
+        if prompt and prompt.Enabled and shouldProcessPrompt(prompt) then
+            
+            local promptPosition = obj.Position
+            local distance = (promptPosition - playerPosition).Magnitude
+            
+            if distance <= maxDistance then
+                if Config.ProximityTeleport and distance > prompt.MaxActivationDistance then
+                    local teleportPosition = promptPosition + (playerPosition - promptPosition).Unit * (prompt.MaxActivationDistance - 1)
+                    smoothTeleport(teleportPosition, function()
+                        task.wait(0.1)
+                        clickProximityPrompt(prompt)
+                    end)
+                    break
+                elseif distance <= prompt.MaxActivationDistance then
+                    clickProximityPrompt(prompt)
+                    break
+                end
+            end
+        end
+    end
+end
+
+-- ======================== LOOP MANAGEMENT ========================
+
+local function startMainLoop()
+    if mainConnection then mainConnection:Disconnect() end
+    if proximityConnection then proximityConnection:Disconnect() end
+    
+    mainConnection = RunService.Heartbeat:Connect(function()
+        autoAttackEnemies()
+    end)
+    
+    proximityConnection = RunService.Heartbeat:Connect(function()
+        processProximityPrompts()
+    end)
+end
+
+local function stopMainLoop()
+    if mainConnection then mainConnection:Disconnect() end
+    if proximityConnection then proximityConnection:Disconnect() end
+    if speedConnection then speedConnection:Disconnect() end
+    if spamConnection then spamConnection:Disconnect() end
+    
+    currentTarget = nil
+    TeleportingTo = nil
+    processedPrompts = {}
+    
+    pcall(function()
+        Bindable.WithdrawPets:Fire()
+    end)
+end
+
+-- ======================== RAYFIELD GUI ========================
+
+local Window = Rayfield:CreateWindow({
+    Name = "Luvwas Hub - AFS",
+    LoadingTitle = "Carregando Sistema...",
+    LoadingSubtitle = "Made by Luvwas - Otimizado",
+    ConfigurationSaving = { Enabled = false }
+})
+
+-- ======================== TAB TRIAL ========================
+local TrialTab = Window:CreateTab("Setup", 4483362458)
+
+-- Toggle Auto Spam
+TrialTab:CreateToggle({
+    Name = "🚀 Artefato + Pot Spam ",
+    CurrentValue = Config.AutoSpam,
+    Flag = "AutoSpamToggle",
+    Callback = function(Value)
+        Config.AutoSpam = Value
+        if Config.AutoSpam then
+            runSpam()
+        else
+            if spamConnection then spamConnection:Disconnect() end
+        end
+    end,
+})
+
+-- Toggle WalkSpeed
+TrialTab:CreateToggle({
+    Name = "⚡ Ligar Velocidade de Movimento",
+    CurrentValue = Config.SpeedToggle,
+    Flag = "WalkSpeedToggle",
+    Callback = function(Value)
+        Config.SpeedToggle = Value
+        if Config.SpeedToggle then
+            maintainSpeed()
+        else
+            if speedConnection then speedConnection:Disconnect() end
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                LocalPlayer.Character.Humanoid.WalkSpeed = 16
+            end
+        end
+    end
+})
+
+-- Slider WalkSpeed
+TrialTab:CreateSlider({
+    Name = "🏃 Velocidade de Movimento Max",
+    Range = {1, 500},
+    Increment = 1,
+    Suffix = " Speed",
+    CurrentValue = Config.WalkSpeed,
+    Flag = "WalkSpeedSlider",
+    Callback = function(Value)
+        Config.WalkSpeed = Value
+    end,
+})
+
+-- Botão Redeem Code
+TrialTab:CreateButton({
+    Name = "🎁 Resgatar Código: afsxotw!",
+    Callback = function()
+        redeemCode("afsxotw!")
+        Rayfield:Notify({
+            Title = "Código Resgatado!",
+            Content = "Código 'afsxotw!' foi enviado",
+            Duration = 3,
+            Image = 4483362458,
+        })
+    end
+})
+
+-- Info Section
+TrialTab:CreateSection("📊 Informações do Trial")
+
+local TrialInfo = TrialTab:CreateParagraph({
+    Title = "Status do Sistema",
+    Content = "Trial: Funcionalidades básicas ativas"
+})
+
+-- ======================== TAB MAIN ========================
+local MainTab = Window:CreateTab("Principal", 4483362458)
+
+-- Section Auto Attack
+MainTab:CreateSection("⚔️ Sistema de Auto Attack")
+
+MainTab:CreateToggle({
+    Name = "🎯 Auto Attack",
+    CurrentValue = Config.AutoAttackEnabled,
+    Flag = "AutoAttackToggle",
+    Callback = function(Value)
+        Config.AutoAttackEnabled = Value
+    end,
+})
+
+MainTab:CreateToggle({
+    Name = "🚀 TP Pros NPC",
+    CurrentValue = Config.TeleportToEnemy,
+    Flag = "TeleportToggle",
+    Callback = function(Value)
+        Config.TeleportToEnemy = Value
+    end,
+})
+
+MainTab:CreateToggle({
+    Name = "🎮 Atacar com Todos os Pets",
+    CurrentValue = Config.AttackAllPets,
+    Flag = "AllPetsToggle",
+    Callback = function(Value)
+        Config.AttackAllPets = Value
+    end,
+})
+
+-- Section Proximity
+MainTab:CreateSection("📍 Sistema de Proximity")
+
+MainTab:CreateToggle({
+    Name = "🎯 Proximity Auto (Habilitar Proxima Room)",
+    CurrentValue = Config.ProximityEnabled,
+    Flag = "ProximityToggle",
+    Callback = function(Value)
+        Config.ProximityEnabled = Value
+    end,
+})
+
+MainTab:CreateToggle({
+    Name = "🚀 Teleporte para Prompts (Deixar On Se Usar o Outro)",
+    CurrentValue = Config.ProximityTeleport,
+    Flag = "ProximityTeleportToggle",
+    Callback = function(Value)
+        Config.ProximityTeleport = Value
+    end,
+})
+
+-- Section Configurações Gerais
+MainTab:CreateSection("⚙️ Configurações Gerais")
+
+MainTab:CreateSlider({
+    Name = "📏 Distância De Tudo",
+    Range = {1, 500},
+    Increment = 1,
+    Suffix = " studs",
+    CurrentValue = Config.AttackRange,
+    Flag = "DistanceSlider",
+    Callback = function(Value)
+        Config.AttackRange = Value
+    end,
+})
+
+MainTab:CreateSlider({
+    Name = "📐 Distância de TP",
+    Range = {1, 100},
+    Increment = 1,
+    Suffix = " studs",
+    CurrentValue = Config.TeleportDistance,
+    Flag = "TeleportDistanceSlider",
+    Callback = function(Value)
+        Config.TeleportDistance = Value
+    end,
+})
+
+-- Info Section
+MainTab:CreateSection("📊 Informações do Sistema")
+
+local SystemInfo = MainTab:CreateParagraph({
+    Title = "Status do Sistema",
+    Content = "Sistema Integrado: Inicializando..."
+})
+
+-- Sistema de info em tempo real
+task.spawn(function()
+    while true do
+        pcall(function()
+            local enemies = #findNearbyEnemies()
+            local pets = #getAvailablePets()
+            
+            local systemStatus = string.format(
+                "🎯 Inimigos Próximos: %d\n🐾 Pets Disponíveis: %d\n📏 Distância: %d studs\n%s",
+                enemies, pets, Config.AttackRange,
+                TeleportingTo and "🚀 Teleportando..." or "✅ Sistema Operacional"
+            )
+            
+            SystemInfo:Set({
+                Title = "Status do Sistema",
+                Content = systemStatus
+            })
+            
+            local trialStatus = string.format(
+                "🚀 Auto Spam: %s\n⚡ Speed Boost: %s\n🏃 Velocidade: %d\n⏱️ Uptime: Ativo",
+                Config.AutoSpam and "✅ ATIVO" or "❌ INATIVO",
+                Config.SpeedToggle and "✅ ATIVO" or "❌ INATIVO",
+                Config.WalkSpeed
+            )
+            
+            TrialInfo:Set({
+                Title = "Status do Trial",
+                Content = trialStatus
+            })
+        end)
+        task.wait(2) -- Atualiza a cada 2 segundos
+    end
+end)
+
+-- ======================== INICIALIZAÇÃO ========================
+
+local function initialize()
+    print("=== SISTEMA INTEGRADO v2.1 COM RAYFIELD (SEM MAGNET) ===")
+    print("⚔️ Auto Attack:", Config.AutoAttackEnabled and "ATIVADO" or "DESATIVADO")
+    print("🎯 Proximity Prompts:", Config.ProximityEnabled and "ATIVADO" or "DESATIVADO") 
+    print("🚀 Trial Features: Carregados")
+    print("📏 Distância:", Config.AttackRange)
+    print("==========================================")
+    
+    startMainLoop()
+    
+    Rayfield:Notify({
+        Title = "Sistema Carregado!",
+        Content = "Sistema otimizado sem magnet inicializado",
+        Duration = 5,
+        Image = 4483362458,
+    })
+end
+
+-- Limpeza e eventos
+Players.PlayerRemoving:Connect(function(player)
+    if player == LocalPlayer then
+        stopMainLoop()
+    end
+end)
+
+LocalPlayer.CharacterAdded:Connect(function()
+    Character = LocalPlayer.Character
+    Humanoid = Character:WaitForChild("Humanoid")
+    task.wait(2)
+    initialize()
+end)
+
+-- Sistema de limpeza automática
+task.spawn(function()
+    while true do
+        task.wait(30)
+        
+        local currentTime = tick()
+        for prompt, time in pairs(processedPrompts) do
+            if currentTime - time > 5 then
+                processedPrompts[prompt] = nil
+            end
+        end
+    end
+end)
+
+-- Inicialização
+if LocalPlayer.Character then
+    initialize()
+end
+
+print("🎉 SISTEMA INTEGRADO v2.1 SEM MAGNET CARREGADO!")
+print("💡 Funcionalidades:")
+print("   - Tab Setup: Auto Spam, Speed Boost, Redeem Code")
+print("   - Tab Principal: Auto Attack, Proximity")
+print("   - Sliders para distâncias (1-500)")
+print("   - Info em tempo real")
+print("   - Sistema otimizado sem magnet")
+
+-- Retorna módulo para uso externo
+return {
+    Config = Config,
+    ToggleAutoAttack = function() Config.AutoAttackEnabled = not Config.AutoAttackEnabled end,
+    ToggleProximity = function() Config.ProximityEnabled = not Config.ProximityEnabled end,
+    SetDistance = function(dist) Config.AttackRange = math.clamp(dist, 1, 500) end,
+    GetStats = function()
+        return {
+            enemies = #findNearbyEnemies(),
+            pets = #getAvailablePets(),
+            processedPrompts = (function() local count = 0; for _ in pairs(processedPrompts) do count = count + 1 end; return count end)()
+        }
+    end,
+    ForceCleanup = function()
+        processedPrompts = {}
+        print("🧹 Limpeza forçada executada")
+    end,
+    RedeemCode = redeemCode,
+    FireRemote = fireRemote
+}
