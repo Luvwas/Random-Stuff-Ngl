@@ -1,1 +1,980 @@
+-- Luvwas Hub (fix safe loader) - Linoria/Rayfield fallback robust
+-- Cole inteiro no executor
 
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- Remotes & EggStats
+local Remote = ReplicatedStorage:FindFirstChild("Remote")
+local Bindable = ReplicatedStorage:FindFirstChild("Bindable")
+local EggStats = {}
+pcall(function()
+    local ms = ReplicatedStorage:FindFirstChild("ModuleScripts")
+    if ms and ms:FindFirstChild("EggStats") then
+        EggStats = require(ms:FindFirstChild("EggStats"))
+    end
+end)
+
+-- Config (mantive os defaults que você vinha usando)
+local Config = {
+    AutoAttackEnabled = false,
+    AttackRange = 50,
+    AttackAllPets = true,
+    TeleportToEnemy = false,
+    TeleportDistance = 6,
+    SmoothTeleport = false,
+
+    ProximityEnabled = false,
+    ProximityTeleport = true,
+    ProximityClickDelay = 0.3,
+    ProximityHoldTime = 0.5,
+    ProximityCheckInterval = 0.5,
+
+    AutoSpam = false,
+    SpeedToggle = false,
+    WalkSpeed = 100,
+
+    AutoOpen = false,
+    AutoMaxOpen = false,
+    MaxOpenThreads = 5,
+    MaxOpenDelay = 0.06,
+    OpenDelay = 0.12,
+}
+
+-- Lista de mundos/eggs (1..71) — mantive sua lista
+local mainEggs = {
+    {name="GokuEgg",world=1,worldName="DBZ"},
+    {name="NarutoEgg",world=2,worldName="Naruto"},
+    {name="JojoEgg",world=3,worldName="JoJo"},
+    {name="OnePieceEgg",world=4,worldName="OnePiece"},
+    {name="MHAEgg",world=5,worldName="MHA"},
+    {name="AOTEgg",world=6,worldName="AOT"},
+    {name="DemonEgg",world=7,worldName="DemonSlayer"},
+    {name="GhoulEgg",world=8,worldName="TokyoGhoul"},
+    {name="HxHEgg",world=9,worldName="HunterXHunter"},
+    {name="SAOEgg",world=10,worldName="SAO"},
+    {name="BleachEgg",world=11,worldName="Bleach"},
+    {name="JJKEgg",world=12,worldName="JJK"},
+    {name="OPMEgg",world=13,worldName="OPM"},
+    {name="7DSEgg",world=14,worldName="7DS"},
+    {name="FateEgg",world=15,worldName="Fate"},
+    {name="BCEgg",world=16,worldName="BC"},
+    {name="FMAEgg",world=17,worldName="FMA"},
+    {name="SlimeEgg",world=18,worldName="Slime"},
+    {name="FireForceEgg",world=19,worldName="FireForce"},
+    {name="RoREgg",world=20,worldName="RoR"},
+    {name="FairyTailEgg",world=21,worldName="FairyTail"},
+    {name="ReZeroEgg",world=22,worldName="ReZero"},
+    {name="ChainsawManEgg",world=23,worldName="ChainsawMan"},
+    {name="Mob100Egg",world=24,worldName="Mob100"},
+    {name="DorohedoroEgg",world=25,worldName="Dorohedoro"},
+    {name="BorutoEgg",world=26,worldName="Boruto"},
+    {name="TokyoRevengerEgg",world=27,worldName="TokyoRevenger"},
+    {name="JJBAStoneOceanEgg",world=28,worldName="JJBAStoneOcean"},
+    {name="YugiohEgg",world=29,worldName="Yugioh"},
+    {name="KLKEgg",world=30,worldName="KLK"},
+    {name="BerserkEgg",world=31,worldName="Berserk"},
+    {name="ShieldHeroEgg",world=32,worldName="ShieldHero"},
+    {name="OverlordEgg",world=33,worldName="Overlord"},
+    {name="SoulEaterEgg",world=34,worldName="SoulEater"},
+    {name="CodeGeassEgg",world=35,worldName="CodeGeass"},
+    {name="MadeInAbyssEgg",world=36,worldName="MadeInAbyss"},
+    {name="HellsParadiseEgg",world=37,worldName="HellsParadise"},
+    {name="OPWanoEgg",world=38,worldName="OPWano"},
+    {name="DemonSlayer2Egg",world=39,worldName="DemonSlayer2"},
+    {name="BTYBWEgg",world=40,worldName="BTYBW"},
+    {name="BakiEgg",world=41,worldName="Baki"},
+    {name="JJK2Egg",world=42,worldName="JJK2"},
+    {name="DBZSuperEgg",world=43,worldName="DBZSuper"},
+    {name="JJSBREgg",world=44,worldName="JJSBR"},
+    {name="MushTenseiEgg",world=45,worldName="MushTensei"},
+    {name="SoloLevelEgg",world=46,worldName="SoloLevel"},
+    {name="KonosubaEgg",world=47,worldName="Konosuba"},
+    {name="MHAWarEgg",world=48,worldName="MHAWar"},
+    {name="CastlevaniaEgg",world=49,worldName="Castlevania"},
+    {name="TEISEgg",world=50,worldName="TEIS"},
+    {name="YuYuhEgg",world=51,worldName="YuYuh"},
+    {name="VinlandEgg",world=52,worldName="Vinland"},
+    {name="AkameGaKillEgg",world=53,worldName="AkameGaKill"},
+    {name="BlueLockEgg",world=54,worldName="BlueLock"},
+    {name="AClassroomEgg",world=55,worldName="AClassroom"},
+    {name="MashleEgg",world=56,worldName="Mashle"},
+    {name="DrStoneEgg",world=57,worldName="DrStone"},
+    {name="GodHighschoolEgg",world=58,worldName="GodHighschool"},
+    {name="IppoEgg",world=59,worldName="Ippo"},
+    {name="BlueExorcistEgg",world=60,worldName="BlueExorcist"},
+    {name="FrierenEgg",world=61,worldName="Frieren"},
+    {name="FrontierEgg",world=62,worldName="Frontier"},
+    {name="EvangelionEgg",world=63,worldName="Evangelion"},
+    {name="HellsingEgg",world=64,worldName="Hellsing"},
+    {name="DemonSlayer3Egg",world=65,worldName="DemonSlayer3"},
+    {name="SaintSeiyaEgg",world=66,worldName="SaintSeiya"},
+    {name="UndeadUnluckEgg",world=67,worldName="UndeadUnluck"},
+    {name="OnePunchEgg",world=68,worldName="OnePunch"},
+    {name="FireForce3Egg",world=69,worldName="FireForce3"},
+    {name="SakamotoDaysEgg",world=70,worldName="SakamotoDays"},
+    {name="HxH2Egg",world=71,worldName="HxH2"},
+}
+
+-- ---------- Helpers de remotes seguros ----------
+local function safeFireRemote(container, name, ...)
+    local args = {...}
+    pcall(function()
+        if not container then return end
+        local r = container:FindFirstChild(name)
+        if r and r.FireServer then r:FireServer(unpack(args)) end
+    end)
+end
+
+local function safeInvokeRemote(container, name, ...)
+    local args = {...}
+    local ok, ret = pcall(function()
+        if not container then return nil end
+        local r = container:FindFirstChild(name)
+        if r and r.InvokeServer then return r:InvokeServer(unpack(args)) end
+    end)
+    if ok then return ret end
+    return nil
+end
+
+local function detectRemoteContainer()
+    return ReplicatedStorage:FindFirstChild("Remote") or ReplicatedStorage:FindFirstChild("Remotes") or Remote
+end
+
+-- ---------- Helpers de jogo (pets/enemies/teleport) ----------
+local function getAvailablePets()
+    local pets = {}
+    local folder = workspace:FindFirstChild("Pets")
+    if not folder then return pets end
+    for _, p in ipairs(folder:GetChildren()) do
+        if p:FindFirstChild("Data") and p.Data:FindFirstChild("Owner") and p.Data.Owner.Value == LocalPlayer then
+            table.insert(pets, p)
+        end
+    end
+    return pets
+end
+
+local function findNearbyEnemies()
+    if not (LocalPlayer.Character and LocalPlayer.Character.PrimaryPart) then return {} end
+    local pos = LocalPlayer.Character.PrimaryPart.Position
+    local out = {}
+    for _, e in pairs(CollectionService:GetTagged("Attackable")) do
+        if e.PrimaryPart then
+            local d = (e.PrimaryPart.Position - pos).Magnitude
+            if d <= Config.AttackRange then
+                table.insert(out, {enemy = e, distance = d})
+            end
+        end
+    end
+    table.sort(out, function(a,b) return a.distance < b.distance end)
+    return out
+end
+
+local function calculateTeleportPosition(enemyPart)
+    if not enemyPart then return nil end
+    local offset = Config.TeleportDistance
+    local angle = math.random() * math.pi * 2
+    return enemyPart.Position + Vector3.new(math.cos(angle)*offset, 3, math.sin(angle)*offset)
+end
+
+local TeleportingTo = nil
+local function smoothTeleportTo(pos, callback)
+    if not (LocalPlayer.Character and LocalPlayer.Character.PrimaryPart) then if callback then callback() end return end
+    local hrp = LocalPlayer.Character.PrimaryPart
+    TeleportingTo = pos
+    if Config.SmoothTeleport then
+        local dist = (pos - hrp.Position).Magnitude
+        local tween = TweenService:Create(hrp, TweenInfo.new(math.min(dist/200,1), Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {CFrame = CFrame.new(pos)})
+        tween:Play()
+        tween.Completed:Wait()
+    else
+        hrp.CFrame = CFrame.new(pos)
+    end
+    TeleportingTo = nil
+    if callback then callback() end
+end
+
+local function sendPetToTarget(pet, target)
+    pcall(function()
+        if Bindable and Bindable:FindFirstChild("SendPet") then
+            Bindable.SendPet:Fire(target, false, false)
+        else
+            local container = detectRemoteContainer()
+            if container and container:FindFirstChild("SendPet") and container.SendPet.FireServer then
+                pcall(function() container.SendPet:FireServer(target) end)
+            end
+        end
+    end)
+end
+
+-- ---------- Core loops ----------
+local spamConnection, speedConnection, mainLoopConnection, proximityConnection
+local autoOpenConnection, autoMaxOpenConnection
+
+local function autoAttackTick()
+    if not Config.AutoAttackEnabled or TeleportingTo then return end
+    local enemies = findNearbyEnemies()
+    if #enemies == 0 then return end
+    local pets = getAvailablePets()
+    if #pets == 0 then return end
+
+    if Config.AttackAllPets then
+        for i = 1, math.min(#pets, #enemies) do
+            local pet = pets[i]
+            local enemy = enemies[i].enemy
+            if pet and enemy then
+                if Config.TeleportToEnemy and enemy.PrimaryPart then
+                    local pos = calculateTeleportPosition(enemy.PrimaryPart)
+                    if pos then smoothTeleportTo(pos) end
+                end
+                pcall(function() sendPetToTarget(pet, enemy) end)
+                task.wait(0.04)
+            end
+        end
+    else
+        local enemy = enemies[1].enemy
+        local freePet = nil
+        for _, p in ipairs(pets) do
+            if p:FindFirstChild("Data") and p.Data:FindFirstChild("Attacking") and not p.Data.Attacking.Value then
+                freePet = p
+                break
+            end
+        end
+        if not freePet then freePet = pets[1] end
+        if freePet and enemy then
+            if Config.TeleportToEnemy and enemy.PrimaryPart then
+                local pos = calculateTeleportPosition(enemy.PrimaryPart)
+                if pos then smoothTeleportTo(pos) end
+            end
+            pcall(function() sendPetToTarget(freePet, enemy) end)
+        end
+    end
+end
+
+-- proximity
+local processedPrompts = {}
+local lastProximityCheck = 0
+local function shouldProcessPrompt(prompt)
+    if not Config.ProximityEnabled then return false end
+    if processedPrompts[prompt] then return false end
+    local text = (prompt.ActionText or prompt.ObjectText or ""):lower()
+    local allowed = {"e","collect","open","interact","use","take","grab","pick up","enter","exit"}
+    for _, a in ipairs(allowed) do
+        if string.find(text, a) then return true end
+    end
+    return false
+end
+
+local function clickProximityPrompt(prompt)
+    if not prompt then return end
+    if prompt.HoldDuration and prompt.HoldDuration > 0 then
+        prompt:InputHoldBegin()
+        task.wait(math.max(prompt.HoldDuration, Config.ProximityHoldTime))
+        prompt:InputHoldEnd()
+    else
+        prompt:InputHoldBegin()
+        prompt:InputHoldEnd()
+    end
+end
+
+local function processProximity()
+    if not Config.ProximityEnabled or TeleportingTo then return end
+    if not (LocalPlayer.Character and LocalPlayer.Character.PrimaryPart) then return end
+    local now = tick()
+    if now - lastProximityCheck < Config.ProximityCheckInterval then return end
+    lastProximityCheck = now
+
+    local pos = LocalPlayer.Character.PrimaryPart.Position
+    local maxDist = Config.AttackRange
+    local region = workspace:GetPartBoundsInBox(LocalPlayer.Character.PrimaryPart.CFrame, Vector3.new(maxDist*2, maxDist*2, maxDist*2))
+    for _, obj in ipairs(region) do
+        local prompt = obj:FindFirstChildOfClass("ProximityPrompt")
+        if prompt and prompt.Enabled and shouldProcessPrompt(prompt) then
+            local d = (obj.Position - pos).Magnitude
+            if d <= maxDist then
+                if Config.ProximityTeleport and d > prompt.MaxActivationDistance then
+                    local tpPos = obj.Position + (pos - obj.Position).Unit * (prompt.MaxActivationDistance - 1)
+                    smoothTeleportTo(tpPos, function()
+                        task.wait(0.08)
+                        clickProximityPrompt(prompt)
+                    end)
+                else
+                    clickProximityPrompt(prompt)
+                end
+                processedPrompts[prompt] = tick()
+                break
+            end
+        end
+    end
+end
+
+-- loops control
+local function startSpam()
+    if spamConnection then return end
+    spamConnection = RunService.Heartbeat:Connect(function()
+        if not Config.AutoSpam then spamConnection:Disconnect(); spamConnection=nil; return end
+        pcall(function()
+            local c = detectRemoteContainer()
+            safeFireRemote(c, "UseItem", "EasterDropsBoost")
+            safeFireRemote(c, "UpgradeArtefact", "Drops")
+            safeFireRemote(c, "EquipArtefact", "Drops", "CurrentArtefact")
+            safeFireRemote(c, "PrestigeArtefact", "Drops")
+        end)
+        task.wait(0.05)
+    end)
+end
+local function stopSpam() if spamConnection then spamConnection:Disconnect(); spamConnection=nil end end
+
+local function startSpeed()
+    if speedConnection then return end
+    speedConnection = RunService.Heartbeat:Connect(function()
+        if not Config.SpeedToggle then speedConnection:Disconnect(); speedConnection=nil; return end
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = Config.WalkSpeed
+        end
+    end)
+end
+local function stopSpeed() if speedConnection then speedConnection:Disconnect(); speedConnection=nil end if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then LocalPlayer.Character.Humanoid.WalkSpeed = 16 end end
+
+-- egg instance resolve
+local function getEggInstance(rec)
+    if not rec then return nil end
+    local worlds = workspace:FindFirstChild("Worlds") or workspace:FindFirstChild("World")
+    if not worlds then return nil end
+    local w = worlds:FindFirstChild(rec.worldName) or worlds:FindFirstChild(tostring(rec.world))
+    if not w then
+        for _, c in ipairs(worlds:GetChildren()) do
+            if string.match(string.lower(c.Name), string.lower(rec.worldName)) then
+                w = c
+                break
+            end
+        end
+    end
+    if not w then return nil end
+    return w:FindFirstChild(rec.name) or w:FindFirstChild(rec.worldName.."Egg") or w:FindFirstChild(rec.name.."Egg")
+end
+
+-- Auto openers
+local function startAutoOpen()
+    if autoOpenConnection then return end
+    autoOpenConnection = RunService.Heartbeat:Connect(function()
+        if not Config.AutoOpen then if autoOpenConnection then autoOpenConnection:Disconnect() autoOpenConnection=nil end return end
+        if not selectedEgg then task.wait(0.1) return end
+        local container = detectRemoteContainer()
+        local eggInst = getEggInstance(selectedEgg)
+        pcall(function()
+            if container and container:FindFirstChild("OpenEgg") and eggInst then
+                local obj = container.OpenEgg
+                if obj.InvokeServer then obj:InvokeServer(eggInst, 1) elseif obj.FireServer then obj:FireServer(eggInst, 1) end
+                task.wait(Config.OpenDelay); return
+            end
+            if container and container:FindFirstChild("AttemptOpen") then
+                container.AttemptOpen:FireServer(selectedEgg.name, 1)
+                task.wait(Config.OpenDelay); return
+            end
+            if container and container:FindFirstChild("AttemptMultiOpen") then
+                container.AttemptMultiOpen:FireServer(selectedEgg.name)
+                task.wait(Config.OpenDelay); return
+            end
+        end)
+        task.wait(Config.OpenDelay)
+    end)
+end
+local function stopAutoOpen() if autoOpenConnection then autoOpenConnection:Disconnect(); autoOpenConnection=nil end end
+
+local function startAutoMaxOpen()
+    if autoMaxOpenConnection then return end
+    autoMaxOpenConnection = RunService.Heartbeat:Connect(function()
+        if not Config.AutoMaxOpen then if autoMaxOpenConnection then autoMaxOpenConnection:Disconnect() autoMaxOpenConnection=nil end return end
+        if not selectedEgg then task.wait(0.05) return end
+        local container = detectRemoteContainer()
+        local eggInst = getEggInstance(selectedEgg)
+        for i = 1, math.max(1, Config.MaxOpenThreads) do
+            task.spawn(function()
+                pcall(function()
+                    if container and container:FindFirstChild("AttemptMultiOpen") then
+                        container.AttemptMultiOpen:FireServer(selectedEgg.name)
+                        return
+                    end
+                    if container and container:FindFirstChild("OpenEgg") and eggInst then
+                        local obj = container.OpenEgg
+                        if obj.InvokeServer then obj:InvokeServer(eggInst, 3) elseif obj.FireServer then obj:FireServer(eggInst, 3) end
+                        return
+                    end
+                    if container and container:FindFirstChild("AttemptOpen") then
+                        container.AttemptOpen:FireServer(selectedEgg.name, 3)
+                        return
+                    end
+                end)
+            end)
+        end
+        task.wait(Config.MaxOpenDelay)
+    end)
+end
+local function stopAutoMaxOpen() if autoMaxOpenConnection then autoMaxOpenConnection:Disconnect(); autoMaxOpenConnection=nil end end
+
+local function startMainLoop()
+    if mainLoopConnection then return end
+    mainLoopConnection = RunService.Heartbeat:Connect(function()
+        autoAttackTick()
+    end)
+    if not proximityConnection then
+        proximityConnection = RunService.Heartbeat:Connect(function()
+            processProximity()
+        end)
+    end
+end
+
+local function stopAll()
+    if mainLoopConnection then mainLoopConnection:Disconnect(); mainLoopConnection=nil end
+    if proximityConnection then proximityConnection:Disconnect(); proximityConnection=nil end
+    if spamConnection then spamConnection:Disconnect(); spamConnection=nil end
+    if speedConnection then speedConnection:Disconnect(); speedConnection=nil end
+    if autoOpenConnection then autoOpenConnection:Disconnect(); autoOpenConnection=nil end
+    if autoMaxOpenConnection then autoMaxOpenConnection:Disconnect(); autoMaxOpenConnection=nil end
+    TeleportingTo = nil
+    processedPrompts = {}
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.WalkSpeed = 16
+    end
+end
+
+-- TestOpenOnce para debug manual
+local function detectRemotesDebug()
+    local container = detectRemoteContainer()
+    if not container then
+        print("[DETECT] ReplicatedStorage.Remote não encontrado")
+        return {}
+    end
+    local found = {}
+    for _, c in ipairs(container:GetChildren()) do
+        found[c.Name] = c.ClassName
+    end
+    print("[DETECT] Remotes in container:")
+    for k,v in pairs(found) do print(" -", k, v) end
+    return found
+end
+
+function TestOpenOnce()
+    if not selectedEgg then print("[TEST] Nenhum egg selecionado") return end
+    print(("[TEST] Testing open for %s (%s)"):format(selectedEgg.name, selectedEgg.worldName))
+    local remotes = detectRemotesDebug()
+    local container = detectRemoteContainer()
+    local eggInst = getEggInstance(selectedEgg)
+    print("[TEST] eggInst:", eggInst)
+    if container and container:FindFirstChild("OpenEgg") and eggInst then
+        local ok, res = pcall(function()
+            local obj = container.OpenEgg
+            if obj.InvokeServer then return obj:InvokeServer(eggInst, 1) elseif obj.FireServer then obj:FireServer(eggInst, 1) end
+        end)
+        print("[TEST] OpenEgg ->", ok, res)
+    end
+    if container and container:FindFirstChild("AttemptMultiOpen") then
+        local ok = pcall(function() container.AttemptMultiOpen:FireServer(selectedEgg.name) end)
+        print("[TEST] AttemptMultiOpen ->", ok)
+    end
+    if container and container:FindFirstChild("AttemptOpen") then
+        local ok = pcall(function() container.AttemptOpen:FireServer(selectedEgg.name, 1) end)
+        print("[TEST] AttemptOpen ->", ok)
+    end
+    print("[TEST] Done")
+end
+
+-- ---------- UI LOADER SEGURO (Linoria fallback Rayfield) ----------
+-- função safeFetchLoad: tenta HttpGet; só chama loadstring se receber string
+local function safeFetchAndRun(url)
+    local ok, res = pcall(function() return game:HttpGet(url) end)
+    if not ok then
+        return false, ("HttpGet failed: %s"):format(tostring(res))
+    end
+    if type(res) ~= "string" then
+        return false, ("HttpGet returned non-string (%s)"):format(typeof(res))
+    end
+    local fn, err = loadstring(res)
+    if not fn then
+        return false, ("loadstring compile failed: %s"):format(tostring(err))
+    end
+    local ok2, result = pcall(fn)
+    if not ok2 then
+        return false, ("loadstring runtime failed: %s"):format(tostring(result))
+    end
+    return true, result
+end
+
+-- tenta Linoria
+local usingLinoria = false
+local Library, ThemeManager
+do
+    local linoriaUrl = "https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/Library.lua"
+    local themeUrl = "https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/addons/ThemeManager.lua"
+    local ok1, res1 = safeFetchAndRun(linoriaUrl)
+    if ok1 and type(res1) == "table" then
+        Library = res1
+        local ok2, res2 = safeFetchAndRun(themeUrl)
+        if ok2 and type(res2) == "table" then
+            ThemeManager = res2
+        end
+        usingLinoria = true
+    else
+        -- fallback Rayfield (mais simples) — tenta também com checagem
+        local okR, resR = pcall(function() return game:HttpGet("https://sirius.menu/rayfield") end)
+        if okR and type(resR) == "string" then
+            local fn, e = loadstring(resR)
+            if fn then
+                local okf, rf = pcall(fn)
+                if okf then
+                    Rayfield = rf
+                end
+            end
+        end
+    end
+end
+
+-- ---------- BUILD UI (Linoria se disponível, senão Rayfield Fallback) ----------
+local usingRayfield = false
+local Window, Tabs
+
+if usingLinoria and Library then
+    print("[UI] Linoria loaded")
+    ThemeManager = ThemeManager or (pcall(function()
+        local themeUrl = "https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/addons/ThemeManager.lua"
+        local ok, res = safeFetchAndRun(themeUrl)
+        if ok then return res end
+    end) and ThemeManager)
+    Window = Library:CreateWindow({ Title = "Luvwas Hub", Center = true, AutoShow = true })
+    Tabs = { Eggs = Window:AddTab("Eggs"), Auto = Window:AddTab("Auto System"), Gates = Window:AddTab("Auto Gate"), Worlds = Window:AddTab("Worlds"), Setup = Window:AddTab("Setup"), UI = Window:AddTab("UI Settings") }
+
+    -- (construção Linoria - similar ao que combinamos antes)
+    local LeftGroupEggs = Tabs.Eggs:AddLeftGroupbox("Controle de Eggs")
+    local RightGroupEggs = Tabs.Eggs:AddRightGroupbox("Informações do Egg")
+    local eggNames = {}
+    for _, e in ipairs(mainEggs) do table.insert(eggNames, ("[%02d] %s - %s"):format(e.world, e.worldName, e.name)) end
+    selectedEgg = mainEggs[1]
+
+    local LName  = RightGroupEggs:AddLabel("Nome: ---")
+    local LWorld = RightGroupEggs:AddLabel("Mundo: ---")
+    local LPrice = RightGroupEggs:AddLabel("Preço: ---")
+    local LBase  = RightGroupEggs:AddLabel("Base Level: ---")
+    RightGroupEggs:AddDivider()
+    RightGroupEggs:AddLabel("Pets:")
+    local petPool = {}
+    for i = 1, 20 do petPool[i] = RightGroupEggs:AddLabel("") end
+    local function clearPool() for i=1,#petPool do petPool[i]:SetText("") end end
+    local function updateEggInfoL(rec)
+        rec = rec or selectedEgg
+        if not rec then return end
+        local stats = EggStats[rec.name]
+        pcall(function()
+            LName:SetText("Nome: "..(rec.name or "---"))
+            LWorld:SetText(("Mundo: %s (%d)"):format(rec.worldName or "---", rec.world or 0))
+            LPrice:SetText("Preço: "..(stats and tostring(stats.Price) or "---"))
+            LBase:SetText("Base Level: "..(stats and tostring(stats.BaseLevel) or "---"))
+            clearPool()
+            local pets = (stats and stats.Pets) or {}
+            for i, p in ipairs(pets) do if petPool[i] then petPool[i]:SetText("- "..tostring(p)) end end
+        end)
+    end
+
+    LeftGroupEggs:AddDropdown("EggSelect", { Values = eggNames, Default = 1, Text = "Selecionar Egg", Callback = function(val)
+        local idx = table.find(eggNames, val)
+        if idx then selectedEgg = mainEggs[idx]; updateEggInfoL(selectedEgg) end
+    end})
+    LeftGroupEggs:AddToggle("AutoOpenToggle", { Text = "Auto Open Egg", Default = Config.AutoOpen, Callback = function(v) Config.AutoOpen=v if v then startAutoOpen() else stopAutoOpen() end end })
+    LeftGroupEggs:AddToggle("AutoMaxOpenToggle", { Text = "Auto Max Open Egg", Default = Config.AutoMaxOpen, Callback = function(v) Config.AutoMaxOpen=v if v then startAutoMaxOpen() else stopAutoMaxOpen() end end })
+    LeftGroupEggs:AddButton({ Text = "Test Open Once", Func = function() TestOpenOnce() end })
+    updateEggInfoL(selectedEgg)
+
+    local AutoLeft = Tabs.Auto:AddLeftGroupbox("Auto Attack")
+    AutoLeft:AddToggle("AutoAttackToggle", { Text="Auto Attack", Default=Config.AutoAttackEnabled, Callback=function(v) Config.AutoAttackEnabled=v if v then startMainLoop() end end})
+    AutoLeft:AddToggle("TeleportToggle", { Text="Teleport To Enemy", Default=Config.TeleportToEnemy, Callback=function(v) Config.TeleportToEnemy=v end})
+    AutoLeft:AddToggle("AttackAllToggle", { Text="Attack All Pets", Default=Config.AttackAllPets, Callback=function(v) Config.AttackAllPets=v end})
+    AutoLeft:AddSlider("AttackRangeSlider", { Text="Attack Range", Default=Config.AttackRange, Min=1, Max=500, Rounding=0, Callback=function(v) Config.AttackRange=v end})
+    AutoLeft:AddSlider("TeleportDistanceSlider", { Text="Teleport Distance", Default=Config.TeleportDistance, Min=1, Max=100, Rounding=0, Callback=function(v) Config.TeleportDistance=v end})
+
+    local SetupLeft = Tabs.Setup:AddLeftGroupbox("Setup")
+    SetupLeft:AddToggle("AutoSpamToggle", { Text="Auto Spam", Default=Config.AutoSpam, Callback=function(v) Config.AutoSpam=v if v then startSpam() else stopSpam() end end})
+    SetupLeft:AddToggle("SpeedToggle", { Text="Enable Speed", Default=Config.SpeedToggle, Callback=function(v) Config.SpeedToggle=v if v then startSpeed() else stopSpeed() end end})
+    SetupLeft:AddSlider("WalkSpeedSlider", { Text="WalkSpeed", Default=Config.WalkSpeed, Min=16, Max=500, Rounding=0, Callback=function(v) Config.WalkSpeed=v end})
+
+    -- ============ AUTO GATES TAB - VERSÃO CORRIGIDA ============
+    local GateOrder = { "E", "D", "C", "B", "A", "S", "Z", "X", "Anniversary" }
+    local SelectedRank = "E"
+    local GateActive = false
+    local currentRunId = nil
+
+    -- Configurações do TP de inimigos no Gate
+    local GateConfig = {
+        TeleportEnemies = false,
+        WaitBetweenTP = false,
+        WaitDelay = 3,
+        EnemyRange = 300,
+    }
+
+    -- Helper melhorado para detectar partes do inimigo
+    local function getEnemyPart(enemy)
+        return enemy:FindFirstChild("HumanoidRootPart")
+            or enemy:FindFirstChild("Torso")
+            or enemy.PrimaryPart
+    end
+
+    -- Helper melhorado para pegar inimigos
+    local function getGateEnemiesByRange(range)
+        local out = {}
+        if not (LocalPlayer.Character and LocalPlayer.Character.PrimaryPart) then return out end
+        local pos = LocalPlayer.Character.PrimaryPart.Position
+        for _, e in pairs(CollectionService:GetTagged("Attackable")) do
+            local part = getEnemyPart(e)
+            if part then
+                local d = (part.Position - pos).Magnitude
+                if d <= range then
+                    table.insert(out, {obj = e, dist = d, part = part})
+                end
+            end
+        end
+        table.sort(out, function(a,b) return a.dist < b.dist end)
+        return out
+    end
+
+    local GatesBox = Tabs.Gates:AddLeftGroupbox("Gate Controls")
+
+    GatesBox:AddDropdown("GateRank", {
+        Values = GateOrder,
+        Default = "E",
+        Multi = false,
+        Text = "Rank do Gate",
+        Callback = function(Value)
+            SelectedRank = Value
+            print("[AutoGate] Rank escolhido:", Value)
+        end
+    })
+
+    local AutoGate = GatesBox:AddToggle("AutoGate", {
+        Text = "Auto Open + TP",
+        Default = false,
+    })
+
+    GatesBox:AddToggle("TeleportEnemies", {
+        Text = "Teleport Inimigos",
+        Default = GateConfig.TeleportEnemies,
+        Callback = function(v) GateConfig.TeleportEnemies = v end
+    })
+
+    GatesBox:AddToggle("WaitToggle", {
+        Text = "Esperar entre TPs",
+        Default = GateConfig.WaitBetweenTP,
+        Callback = function(v) GateConfig.WaitBetweenTP = v end
+    })
+
+    GatesBox:AddSlider("WaitDelay", {
+        Text = "Delay (segundos)",
+        Default = GateConfig.WaitDelay,
+        Min = 1,
+        Max = 5,
+        Rounding = 0,
+        Callback = function(v) GateConfig.WaitDelay = v end
+    })
+
+    GatesBox:AddSlider("EnemyRange", {
+        Text = "Range inimigos",
+        Default = GateConfig.EnemyRange,
+        Min = 1,
+        Max = 300,
+        Rounding = 0,
+        Callback = function(v) GateConfig.EnemyRange = v end
+    })
+
+    -- Loop independente de teleporte (baseado no script menor que funciona)
+    task.spawn(function()
+        while true do
+            task.wait(0.2)
+            if GateActive and GateConfig.TeleportEnemies then
+                local enemies = getGateEnemiesByRange(GateConfig.EnemyRange)
+                for _, enemy in ipairs(enemies) do
+                    if not (GateActive and GateConfig.TeleportEnemies) then break end
+                    if enemy.part and LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
+                        -- Teleporta com offset pequeno acima do inimigo
+                        LocalPlayer.Character.PrimaryPart.CFrame = enemy.part.CFrame + Vector3.new(0, 2, 0)
+                        
+                        if GateConfig.WaitBetweenTP then
+                            task.wait(GateConfig.WaitDelay)
+                        else
+                            task.wait(0.1)
+                        end
+                    end
+                end
+            end
+        end
+    end)
+
+    -- Eventos do Gate
+    if Remote and Remote:FindFirstChild("GateCreated") then
+        Remote.GateCreated.OnClientEvent:Connect(function(runId)
+            if AutoGate.Value and runId then
+                currentRunId = runId
+                GateActive = true
+
+                task.wait(0.5)
+                if Bindable and Bindable:FindFirstChild("Dismount") then
+                    Bindable.Dismount:Fire()
+                end
+                if Remote and Remote:FindFirstChild("JoinGatesMode") then
+                    Remote.JoinGatesMode:FireServer(runId)
+                end
+                task.wait(0.3)
+                if Bindable and Bindable:FindFirstChild("AttemptTravel") then
+                    Bindable.AttemptTravel:Fire("GatesMode", true, runId)
+                end
+                print("[AutoGate] Teleportado para Gate:", SelectedRank)
+            end
+        end)
+    end
+
+    if Remote and Remote:FindFirstChild("GatesModeLost") then
+        Remote.GatesModeLost.OnClientEvent:Connect(function()
+            GateActive = false
+            currentRunId = nil
+            print("[AutoGate] Gate finalizado:", SelectedRank)
+            if AutoGate.Value and Remote and Remote:FindFirstChild("SummonGate") then
+                task.wait(2)
+                Remote.SummonGate:FireServer(SelectedRank)
+                print("[AutoGate] Summonando novo Gate:", SelectedRank)
+            end
+        end)
+    end
+
+    AutoGate:OnChanged(function()
+        if AutoGate.Value then
+            GateActive = false
+            currentRunId = nil
+            task.wait(1)
+            if Remote and Remote:FindFirstChild("SummonGate") then
+                Remote.SummonGate:FireServer(SelectedRank)
+                print("[AutoGate] Summon inicial:", SelectedRank)
+            end
+        else
+            GateActive = false
+            currentRunId = nil
+        end
+    end)
+
+    -- ============ WORLDS TAB ============
+    local WorldsBox = Tabs.Worlds:AddLeftGroupbox("World Teleportation")
+
+    -- Lista de mundos com seus nomes internos
+    local worlds = {
+        ["Summer 2024"] = "Summer24",
+        ["Winter 2023"] = "Christmas2",
+        ["Anniversary Event"] = "Anniversary",
+        ["Prismatic Journey (JJK)"] = "PrismaticJourney",
+        ["Prismatic Journey (SL)"] = "Prismatic_Journey2",
+        ["Spring Event"] = "Spring",
+    }
+
+    -- Extrai os nomes visíveis para o dropdown
+    local displayNames = {}
+    for name, _ in pairs(worlds) do
+        table.insert(displayNames, name)
+    end
+
+    -- Variável para armazenar o mundo selecionado
+    local selectedWorld = worlds["Winter 2023"]
+
+    -- Dropdown para seleção de mundo
+    WorldsBox:AddDropdown("WorldDropdown", {
+        Values = displayNames,
+        Default = "Winter 2023",
+        Multi = false,
+        Text = "Selecione o Mundo",
+        Callback = function(value)
+            selectedWorld = worlds[value]
+        end
+    })
+
+    -- Função para buscar modelo do mundo em workspace.Worlds
+    local function getWorldModel()
+        local worldsFolder = workspace:FindFirstChild("Worlds")
+        if not worldsFolder then return nil end
+
+        for _, world in ipairs(worldsFolder:GetChildren()) do
+            if world.Name == selectedWorld then
+                return world
+            end
+        end
+        return nil
+    end
+
+    -- Botão para liberar mundo
+    WorldsBox:AddButton("🔓 Liberar Mundo", function()
+        if selectedWorld then
+            safeFireRemote(Remote, "AttemptDiscoverWorld", selectedWorld)
+            Library:Notify("Liberado: " .. selectedWorld, 3)
+        end
+    end)
+
+    -- Botão para teleportar com spawn real
+    WorldsBox:AddButton("🚀 Teleportar Mundo", function()
+        if selectedWorld then
+            safeInvokeRemote(Remote, "AttemptTravel", selectedWorld)
+
+            task.wait(1.5)
+
+            local worldModel = getWorldModel()
+            if worldModel then
+                local spawns = worldModel:FindFirstChild("Spawns")
+                if spawns and #spawns:GetChildren() > 0 then
+                    local chosenSpawn = spawns:GetChildren()[math.random(1, #spawns:GetChildren())]
+                    local hrp = LocalPlayer.Character and LocalPlayer.Character:WaitForChild("HumanoidRootPart")
+                    if hrp then
+                        hrp.CFrame = CFrame.new(chosenSpawn.Position + Vector3.new(0, 3, 0))
+                        Library:Notify("Teleportado para spawn!", 3)
+                    end
+                else
+                    Library:Notify("Nenhum spawn encontrado!", 3)
+                end
+            else
+                Library:Notify("Modelo do mundo não encontrado!", 3)
+            end
+        end
+    end)
+
+    -- ThemeManager apply (se tiver)
+    if ThemeManager and type(ThemeManager.SetLibrary) == "function" then
+        pcall(function() ThemeManager:SetLibrary(Library); ThemeManager:ApplyToTab(Tabs.UI) end)
+    end
+
+else
+    -- fallback Rayfield UI (muito simples)
+    print("[UI] Linoria não disponível — usando Rayfield fallback (se presente)")
+    local okR, rf = pcall(function() return game:HttpGet("https://sirius.menu/rayfield") end)
+    local Rayfield = nil
+    if okR and type(rf) == "string" then
+        local fn = loadstring(rf)
+        if fn then
+            pcall(function() Rayfield = fn() end)
+        end
+    end
+
+    if not Rayfield then
+        warn("[UI] Nenhuma lib de UI disponível (Linoria e Rayfield falharam). A UI não será mostrada.")
+    else
+        usingRayfield = true
+        Window = Rayfield:CreateWindow({ Name = "Luvwas Hub (Fallback)", LoadingTitle = "Luvwas", ConfigurationSaving = { Enabled = false } })
+        Tabs = {
+            Eggs = Window:CreateTab("Eggs", 4483362458),
+            Auto = Window:CreateTab("Auto System", 4483362458),
+            Gates = Window:CreateTab("Auto Gate"),
+            Worlds = Window:CreateTab("Worlds", 4483362458),
+            Setup = Window:CreateTab("Setup", 4483362458),
+            UI = Window:CreateTab("UI Settings", 4483362458)
+        }
+
+        local eggNames = {}
+        for _, e in ipairs(mainEggs) do table.insert(eggNames, ("[%02d] %s - %s"):format(e.world, e.worldName, e.name)) end
+
+        -- dropdown + toggles (Rayfield API)
+        Tabs.Eggs:CreateDropdown({
+            Name = "Selecionar Egg",
+            Options = eggNames,
+            CurrentOption = eggNames[1],
+            Callback = function(option)
+                local idx = table.find(eggNames, option)
+                if idx then
+                    selectedEgg = mainEggs[idx]
+                    print("[UI] selectedEgg:", selectedEgg.name)
+                end
+            end
+        })
+        Tabs.Eggs:CreateToggle({ Name = "Auto Open Egg", CurrentValue = Config.AutoOpen, Callback = function(v) Config.AutoOpen=v if v then startAutoOpen() else stopAutoOpen() end end })
+        Tabs.Eggs:CreateToggle({ Name = "Auto Max Open Egg", CurrentValue = Config.AutoMaxOpen, Callback = function(v) Config.AutoMaxOpen=v if v then startAutoMaxOpen() else stopAutoMaxOpen() end end })
+        Tabs.Eggs:CreateButton({ Name = "Test Open Once (Output)", Callback = function() TestOpenOnce() end })
+        
+        -- Worlds Tab for Rayfield
+        local worlds = {
+            ["Summer 2024"] = "Summer24",
+            ["Winter 2023"] = "Christmas2",
+            ["Anniversary Event"] = "Anniversary",
+            ["Prismatic Journey (JJK)"] = "PrismaticJourney",
+            ["Prismatic Journey (SL)"] = "Prismatic_Journey2",
+            ["Spring Event"] = "Spring",
+        }
+        
+        local displayNames = {}
+        for name, _ in pairs(worlds) do
+            table.insert(displayNames, name)
+        end
+        
+        local selectedWorld = worlds["Winter 2023"]
+        
+        Tabs.Worlds:CreateDropdown({
+            Name = "Selecionar Mundo",
+            Options = displayNames,
+            CurrentOption = "Winter 2023",
+            Callback = function(option)
+                selectedWorld = worlds[option]
+            end
+        })
+        
+        Tabs.Worlds:CreateButton({
+            Name = "🔓 Liberar Mundo",
+            Callback = function()
+                if selectedWorld then
+                    safeFireRemote(Remote, "AttemptDiscoverWorld", selectedWorld)
+                    Rayfield:Notify({
+                        Title = "Mundo Liberado",
+                        Content = "Mundo: " .. selectedWorld,
+                        Duration = 3,
+                        Image = 4483362458,
+                    })
+                end
+            end
+        })
+        
+        Tabs.Worlds:CreateButton({
+            Name = "🚀 Teleportar Mundo",
+            Callback = function()
+                if selectedWorld then
+                    safeInvokeRemote(Remote, "AttemptTravel", selectedWorld)
+                    task.wait(1.5)
+                    
+                    local worldsFolder = workspace:FindFirstChild("Worlds")
+                    if worldsFolder then
+                        for _, world in ipairs(worldsFolder:GetChildren()) do
+                            if world.Name == selectedWorld then
+                                local spawns = world:FindFirstChild("Spawns")
+                                if spawns and #spawns:GetChildren() > 0 then
+                                    local chosenSpawn = spawns:GetChildren()[math.random(1, #spawns:GetChildren())]
+                                    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                                    if hrp then
+                                        hrp.CFrame = CFrame.new(chosenSpawn.Position + Vector3.new(0, 3, 0))
+                                        Rayfield:Notify({
+                                            Title = "Teleportado",
+                                            Content = "Teleportado para spawn do mundo!",
+                                            Duration = 3,
+                                            Image = 4483362458,
+                                        })
+                                    end
+                                end
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        })
+    end
+end
+
+-- Start loops if config says
+if Config.AutoAttackEnabled or Config.ProximityEnabled then startMainLoop() end
+if Config.AutoSpam then startSpam() end
+if Config.SpeedToggle then startSpeed() end
+if Config.AutoOpen then startAutoOpen() end
+if Config.AutoMaxOpen then startAutoMaxOpen() end
+
+print("[OK] Script carregado com Gate Fix e World Teleport. UI usando Linoria? " .. tostring(usingLinoria))
