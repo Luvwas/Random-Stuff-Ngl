@@ -1,0 +1,208 @@
+local Players = game:GetService("Players")
+local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+local Remote = ReplicatedStorage:FindFirstChild("Remote")
+local Bindable = ReplicatedStorage:FindFirstChild("Bindable")
+
+---------------------------------------------------------------------
+-- CONFIG
+---------------------------------------------------------------------
+local GateConfig = {
+    TeleportEnemies = false,
+    WaitBetweenTP = false,
+    WaitDelay = 3,
+    EnemyRange = 500, -- ajustado
+}
+
+---------------------------------------------------------------------
+-- Helpers
+---------------------------------------------------------------------
+local function getEnemyPart(enemy)
+    return enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Torso") or enemy.PrimaryPart
+end
+
+local function getGateEnemiesByRange(range)
+    local out = {}
+    if not (LocalPlayer.Character and LocalPlayer.Character.PrimaryPart) then return out end
+    local pos = LocalPlayer.Character.PrimaryPart.Position
+    for _, e in pairs(CollectionService:GetTagged("Attackable")) do
+        local part = getEnemyPart(e)
+        if part then
+            local d = (part.Position - pos).Magnitude
+            if d <= range then
+                table.insert(out, {obj = e, dist = d, part = part})
+            end
+        end
+    end
+    table.sort(out, function(a,b) return a.dist < b.dist end)
+    return out
+end
+
+---------------------------------------------------------------------
+-- GATES AUTO SYSTEM
+---------------------------------------------------------------------
+local GateOrder = { "E","D","C","B","A","S","Z","X","Anniversary" }
+local SelectedRank = "E"
+local GateActive = false
+local currentRunId = nil
+
+---------------------------------------------------------------------
+-- UI (Linoria se disponível)
+---------------------------------------------------------------------
+local usingLinoria = false
+local Library do
+    local ok,res = pcall(function()
+        return loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/Library.lua"))()
+    end)
+    if ok and type(res)=="table" then
+        Library = res
+        usingLinoria = true
+    end
+end
+
+if usingLinoria then
+    local Window = Library:CreateWindow({
+        Title = "Luvwas Hub",
+        Center = true,
+        AutoShow = true
+    })
+
+    local Tabs = {
+        Eggs = Window:AddTab("Eggs"),
+        Auto = Window:AddTab("Auto System"),
+        Gates = Window:AddTab("Auto Gate"),
+        Setup = Window:AddTab("Setup"),
+        UI = Window:AddTab("UI Settings")
+    }
+
+    local GatesBox = Tabs.Gates:AddLeftGroupbox("Gate Controls")
+
+    GatesBox:AddDropdown("GateRank", {
+        Values = GateOrder,
+        Default = "E",
+        Multi = false,
+        Text = "Rank do Gate",
+        Callback = function(Value)
+            SelectedRank = Value
+            print("[AutoGate] Rank escolhido:", Value)
+        end
+    })
+
+    local AutoGate = GatesBox:AddToggle("AutoGate", {
+        Text = "Auto Open + TP",
+        Default = false,
+    })
+
+    GatesBox:AddToggle("TeleportEnemies", {
+        Text = "Teleport Inimigos",
+        Default = GateConfig.TeleportEnemies,
+        Callback = function(v) GateConfig.TeleportEnemies = v end
+    })
+
+    GatesBox:AddToggle("WaitToggle", {
+        Text = "Esperar entre TPs",
+        Default = GateConfig.WaitBetweenTP,
+        Callback = function(v) GateConfig.WaitBetweenTP = v end
+    })
+
+    GatesBox:AddSlider("WaitDelay", {
+        Text = "Delay (segundos)",
+        Default = GateConfig.WaitDelay,
+        Min = 1,
+        Max = 5,
+        Rounding = 0,
+        Callback = function(v) GateConfig.WaitDelay = v end
+    })
+
+    GatesBox:AddSlider("EnemyRange", {
+        Text = "Range inimigos",
+        Default = GateConfig.EnemyRange,
+        Min = 1,
+        Max = 500,
+        Rounding = 0,
+        Callback = function(v) GateConfig.EnemyRange = v end
+    })
+
+    -- Eventos remotos
+    Remote.GateCreated.OnClientEvent:Connect(function(runId)
+        if AutoGate.Value and runId then
+            currentRunId = runId
+            GateActive = true
+            task.wait(0.5)
+            Bindable.Dismount:Fire()
+            Remote.JoinGatesMode:FireServer(runId)
+            task.wait(0.3)
+            Bindable.AttemptTravel:Fire("GatesMode", true, runId)
+            print("[AutoGate] Teleportado para Gate:", SelectedRank)
+        end
+    end)
+
+    Remote.GatesModeLost.OnClientEvent:Connect(function()
+        GateActive = false
+        print("[AutoGate] Gate finalizado:", SelectedRank)
+    end)
+
+    AutoGate:OnChanged(function()
+        if AutoGate.Value then
+            GateActive = true
+            task.wait(1)
+            Remote.SummonGate:FireServer(SelectedRank)
+            print("[AutoGate] Summon inicial:", SelectedRank)
+        else
+            GateActive = false
+            print("[AutoGate] AutoGate desativado.")
+        end
+    end)
+end
+
+---------------------------------------------------------------------
+-- LOOP DE TELEPORT NOS INIMIGOS
+---------------------------------------------------------------------
+task.spawn(function()
+    while true do
+        task.wait(0.2)
+        if GateActive and GateConfig.TeleportEnemies then
+            local enemies = getGateEnemiesByRange(GateConfig.EnemyRange)
+            for _, enemy in ipairs(enemies) do
+                if enemy.part then
+                    if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
+                        LocalPlayer.Character.PrimaryPart.CFrame = enemy.part.CFrame + Vector3.new(0,2,0)
+                    end
+                    if GateConfig.WaitBetweenTP then
+                        task.wait(GateConfig.WaitDelay)
+                    end
+                end
+            end
+        end
+    end
+end)
+
+---------------------------------------------------------------------
+-- LOOP FIXO DE 40s POR GATE
+---------------------------------------------------------------------
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if GateActive then
+            local start = tick()
+            while GateActive and tick() - start < 20 do
+                task.wait(1)
+            end
+            if GateActive then
+                GateActive = false
+                print("[AutoGate] Tempo de 40s esgotado, trocando Gate...")
+
+                -- Sai para TimeChamber
+                Remote.AttemptTravel:InvokeServer("TimeChamber")
+
+                -- Spawna novo Gate
+                task.wait(3)
+                Remote.SummonGate:FireServer(SelectedRank)
+                print("[AutoGate] Summon novo:", SelectedRank)
+            end
+        end
+    end
+end)
+
+print("[OK] Script carregado. Teleporte de inimigos ativo (range 500).")
