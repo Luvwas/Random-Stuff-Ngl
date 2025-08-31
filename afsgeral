@@ -47,7 +47,7 @@ local Config = {
     OpenDelay = 0.12,
 }
 
--- Lista de mundos/eggs (1..71) — mantive sua lista
+-- Lista de mundos/eggs (1..72) — mantive sua lista
 local mainEggs = {
     {name="GokuEgg",world=1,worldName="DBZ"},
     {name="NarutoEgg",world=2,worldName="Naruto"},
@@ -120,6 +120,7 @@ local mainEggs = {
     {name="FireForce3Egg",world=69,worldName="FireForce3"},
     {name="SakamotoDaysEgg",world=70,worldName="SakamotoDays"},
     {name="HxH2Egg",world=71,worldName="HxH2"},
+    {name="GachiakutaEgg",world=72,worldName="Gachiakuta"}
 }
 
 -- ---------- Helpers de remotes seguros ----------
