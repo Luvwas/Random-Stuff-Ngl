@@ -179,14 +179,14 @@ task.spawn(function()
 end)
 
 ---------------------------------------------------------------------
--- LOOP FIXO DE 40s POR GATE
+-- LOOP FIXO DE 30s POR GATE
 ---------------------------------------------------------------------
 task.spawn(function()
     while true do
         task.wait(1)
         if GateActive then
             local start = tick()
-            while GateActive and tick() - start < 20 do
+            while GateActive and tick() - start < 30 do
                 task.wait(1)
             end
             if GateActive then
