@@ -45,106 +45,53 @@ end
 local GateOrder = { "E","D","C","B","A","S","Z","X","Anniversary" }
 local SelectedRank = "E"
 local GateActive = false
+local AutoGateEnabled = false
 local currentRunId = nil
 
 ---------------------------------------------------------------------
--- UI (Linoria se disponível)
+-- UI (Rayfield)
 ---------------------------------------------------------------------
-local usingLinoria = false
-local Library do
-    local ok,res = pcall(function()
-        return loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/Library.lua"))()
-    end)
-    if ok and type(res)=="table" then
-        Library = res
-        usingLinoria = true
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+
+local Window = Rayfield:CreateWindow({
+    Name = "Luvwas Hub",
+    LoadingTitle = "Carregando...",
+    LoadingSubtitle = "by Luvwas",
+    ConfigurationSaving = {
+       Enabled = true,
+       FolderName = "LuvwasHub",
+       FileName = "AutoGateConfig"
+    },
+    Discord = {
+       Enabled = false
+    },
+    KeySystem = false
+})
+
+local GatesTab = Window:CreateTab("Auto Gate", 4483362458) -- ícone opcional
+GatesTab:CreateSection("Gate Controls")
+
+-- Dropdown Rank
+GatesTab:CreateDropdown({
+    Name = "Rank do Gate",
+    Options = GateOrder,
+    CurrentOption = {SelectedRank}, -- precisa ser tabela no Rayfield
+    Flag = "GateRank",
+    Callback = function(Value)
+        -- Rayfield retorna tabela mesmo em Multi=false
+        SelectedRank = Value[1]
+        print("[AutoGate] Rank escolhido:", SelectedRank)
     end
-end
+})
 
-if usingLinoria then
-    local Window = Library:CreateWindow({
-        Title = "Luvwas Hub",
-        Center = true,
-        AutoShow = true
-    })
-
-    local Tabs = {
-        Eggs = Window:AddTab("Eggs"),
-        Auto = Window:AddTab("Auto System"),
-        Gates = Window:AddTab("Auto Gate"),
-        Setup = Window:AddTab("Setup"),
-        UI = Window:AddTab("UI Settings")
-    }
-
-    local GatesBox = Tabs.Gates:AddLeftGroupbox("Gate Controls")
-
-    GatesBox:AddDropdown("GateRank", {
-        Values = GateOrder,
-        Default = "E",
-        Multi = false,
-        Text = "Rank do Gate",
-        Callback = function(Value)
-            SelectedRank = Value
-            print("[AutoGate] Rank escolhido:", Value)
-        end
-    })
-
-    local AutoGate = GatesBox:AddToggle("AutoGate", {
-        Text = "Auto Open + TP",
-        Default = false,
-    })
-
-    GatesBox:AddToggle("TeleportEnemies", {
-        Text = "Teleport Inimigos",
-        Default = GateConfig.TeleportEnemies,
-        Callback = function(v) GateConfig.TeleportEnemies = v end
-    })
-
-    GatesBox:AddToggle("WaitToggle", {
-        Text = "Esperar entre TPs",
-        Default = GateConfig.WaitBetweenTP,
-        Callback = function(v) GateConfig.WaitBetweenTP = v end
-    })
-
-    GatesBox:AddSlider("WaitDelay", {
-        Text = "Delay (segundos)",
-        Default = GateConfig.WaitDelay,
-        Min = 1,
-        Max = 5,
-        Rounding = 0,
-        Callback = function(v) GateConfig.WaitDelay = v end
-    })
-
-    GatesBox:AddSlider("EnemyRange", {
-        Text = "Range inimigos",
-        Default = GateConfig.EnemyRange,
-        Min = 1,
-        Max = 500,
-        Rounding = 0,
-        Callback = function(v) GateConfig.EnemyRange = v end
-    })
-
-    -- Eventos remotos
-    Remote.GateCreated.OnClientEvent:Connect(function(runId)
-        if AutoGate.Value and runId then
-            currentRunId = runId
-            GateActive = true
-            task.wait(0.5)
-            Bindable.Dismount:Fire()
-            Remote.JoinGatesMode:FireServer(runId)
-            task.wait(0.3)
-            Bindable.AttemptTravel:Fire("GatesMode", true, runId)
-            print("[AutoGate] Teleportado para Gate:", SelectedRank)
-        end
-    end)
-
-    Remote.GatesModeLost.OnClientEvent:Connect(function()
-        GateActive = false
-        print("[AutoGate] Gate finalizado:", SelectedRank)
-    end)
-
-    AutoGate:OnChanged(function()
-        if AutoGate.Value then
+-- Toggle AutoGate
+GatesTab:CreateToggle({
+    Name = "Auto Open + TP",
+    CurrentValue = false,
+    Flag = "AutoGate",
+    Callback = function(Value)
+        AutoGateEnabled = Value
+        if Value then
             GateActive = true
             task.wait(1)
             Remote.SummonGate:FireServer(SelectedRank)
@@ -153,8 +100,71 @@ if usingLinoria then
             GateActive = false
             print("[AutoGate] AutoGate desativado.")
         end
-    end)
-end
+    end
+})
+
+-- Toggle TeleportEnemies
+GatesTab:CreateToggle({
+    Name = "Teleport Inimigos",
+    CurrentValue = GateConfig.TeleportEnemies,
+    Callback = function(Value)
+        GateConfig.TeleportEnemies = Value
+    end
+})
+
+-- Toggle WaitBetweenTP
+GatesTab:CreateToggle({
+    Name = "Esperar entre TPs",
+    CurrentValue = GateConfig.WaitBetweenTP,
+    Callback = function(Value)
+        GateConfig.WaitBetweenTP = Value
+    end
+})
+
+-- Slider WaitDelay
+GatesTab:CreateSlider({
+    Name = "Delay (segundos)",
+    Range = {1,5},
+    Increment = 1,
+    CurrentValue = GateConfig.WaitDelay,
+    Flag = "WaitDelay",
+    Callback = function(Value)
+        GateConfig.WaitDelay = Value
+    end
+})
+
+-- Slider EnemyRange
+GatesTab:CreateSlider({
+    Name = "Range inimigos",
+    Range = {1,500},
+    Increment = 1,
+    CurrentValue = GateConfig.EnemyRange,
+    Flag = "EnemyRange",
+    Callback = function(Value)
+        GateConfig.EnemyRange = Value
+    end
+})
+
+---------------------------------------------------------------------
+-- EVENTOS REMOTOS
+---------------------------------------------------------------------
+Remote.GateCreated.OnClientEvent:Connect(function(runId)
+    if AutoGateEnabled and runId then
+        currentRunId = runId
+        GateActive = true
+        task.wait(0.5)
+        Bindable.Dismount:Fire()
+        Remote.JoinGatesMode:FireServer(runId)
+        task.wait(0.3)
+        Bindable.AttemptTravel:Fire("GatesMode", true, runId)
+        print("[AutoGate] Teleportado para Gate:", SelectedRank)
+    end
+end)
+
+Remote.GatesModeLost.OnClientEvent:Connect(function()
+    GateActive = false
+    print("[AutoGate] Gate finalizado:", SelectedRank)
+end)
 
 ---------------------------------------------------------------------
 -- LOOP DE TELEPORT NOS INIMIGOS
@@ -205,4 +215,4 @@ task.spawn(function()
     end
 end)
 
-print("[OK] Script carregado. Teleporte de inimigos ativo (range 500).")
+print("[OK] Script carregado com Rayfield. Teleporte de inimigos ativo (range 500).")
