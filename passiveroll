@@ -1,0 +1,721 @@
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/addons/SaveManager.lua"))()
+
+-- Lista completa de passivas por máquina
+local AllPassives = {
+    ["Normal"] = {
+        "Dmg1", "Dmg2", "Dmg3",
+        "Boss1", "Boss2", "Boss3", 
+        "Drop1", "Drop2", "Drop3",
+        "Yen1", "Yen2", "Yen3",
+        "LevelUp1", "LevelUp2", "LevelUp3",
+        "Ability1", "Ability2", "Ability3",
+        "Leader1", "Leader2", "Leader3",
+        "Luck1", "Luck2", "Luck3", "Luck4",
+        "Cap1", "Cap2", "Cap3",
+        "Speed", "Giant", "Tiny", "Tank", "Blessing",
+        "Gold", "Merc", "Dragon", "Prodigy", "Ghost", "Ace",
+        "Demon", "BrokenLimiter", "Angel", "Interstellar"
+    },
+    ["Summer24"] = {
+        "SeaSpearman", "DevastatingDaylight", "SummerFortune",
+        "SapphireSummer", "SummerGenerosity", "ShiningSun", "CoralCommander"
+    }
+}
+AllPassives["Requiem"] = AllPassives["Normal"]
+
+-- Store initialization
+local LocalDairebStore, GameData
+local success, error = pcall(function()
+    LocalDairebStore = require(game:GetService("ReplicatedStorage").ModuleScripts.LocalDairebStore)
+    LocalDairebStore:WaitForInit()
+    GameData = LocalDairebStore.GetStoreProxy("GameData")
+end)
+
+if not success then
+    Library:Notify("❌ Erro ao carregar GameData: " .. tostring(error), 10)
+    return
+end
+
+-- HasPassive module (optional)
+local HasPassive = nil
+pcall(function()
+    HasPassive = require(game:GetService("ReplicatedStorage").ModuleScripts.HasPassive)
+end)
+
+-- PassiveStats module for validation
+local PassiveStats = nil
+pcall(function()
+    PassiveStats = require(game:GetService("ReplicatedStorage").ModuleScripts.PassiveStats)
+end)
+
+-- Global variables
+local selectedUnit, selectedMachine = nil, "Normal"
+local selectedPassives = {}
+local rolling = false
+local rollDelay = 1.0
+local rollCount = 0
+local autoRollToggle = nil
+
+-- Detection configuration - OTIMIZADO baseado no seu código
+local detectionConfig = {
+    baseDelay = 2.5,        -- Delay inicial reduzido
+    maxRetries = 5,         -- Mais tentativas
+    retryDelay = 0.8,       -- Delay menor entre tentativas
+    enabled = false
+}
+
+-- ===== CORE FUNCTIONS =====
+
+-- Get current unit data - MELHORADO
+local function getCurrentUnit()
+    local success, result = pcall(function()
+        local gameData = GameData:GetData()
+        if not gameData or not gameData.Pets then return nil end
+        
+        for _, unit in pairs(gameData.Pets) do
+            if unit and unit.UID == selectedUnit then
+                return unit
+            end
+        end
+        return nil
+    end)
+    
+    return success and result or nil
+end
+
+-- NOVA FUNÇÃO: Validar se passiva existe no PassiveStats
+local function isValidPassive(passiveName)
+    if not PassiveStats or not passiveName then return false end
+    return PassiveStats[passiveName] ~= nil
+end
+
+-- FUNÇÃO MELHORADA: Conversão de passiva mais permissiva
+local function passiveToString(passive)
+    if passive == nil then return nil end
+    
+    -- Aceitar strings diretamente
+    if type(passive) == "string" and passive ~= "" and passive ~= "nil" then 
+        return passive 
+    end
+    
+    -- Converter números
+    if type(passive) == "number" then 
+        return tostring(passive) 
+    end
+    
+    -- Tentar converter outros tipos
+    local str = tostring(passive)
+    if str and str ~= "" and str ~= "nil" and str ~= "false" and str ~= "true" then
+        return str
+    end
+    
+    return nil
+end
+
+-- FUNÇÃO MELHORADA: HasPassive com mais métodos
+local function checkHasPassive(unit, passiveName)
+    if not HasPassive or not unit or not passiveName then 
+        return false 
+    end
+    
+    -- Lista de métodos possíveis para tentar
+    local methods = {
+        -- Método direto
+        function() return HasPassive(unit, passiveName) end,
+        -- Método com .HasPassive
+        function() return HasPassive.HasPassive(unit, passiveName) end,
+        -- Método com .Check
+        function() return HasPassive.Check(unit, passiveName) end,
+        -- Método com UID
+        function() return HasPassive(unit.UID, passiveName) end,
+        -- Método com passiva como objeto
+        function() 
+            if unit.Passives then
+                for _, passive in pairs(unit.Passives) do
+                    if passiveToString(passive) == passiveName then
+                        return HasPassive(unit, passive)
+                    end
+                end
+            end
+            return false
+        end
+    }
+    
+    for i, method in ipairs(methods) do
+        local success, result = pcall(method)
+        if success and result then
+            print("✅ HasPassive método " .. i .. " encontrou: " .. passiveName)
+            return true
+        end
+    end
+    
+    return false
+end
+
+-- FUNÇÃO MELHORADA: Detecção manual mais robusta
+local function checkPassivesManual(unit, desiredPassives)
+    if not unit or not unit.Passives or not desiredPassives then 
+        return false, nil 
+    end
+    
+    print("🔍 Detecção manual - Passivas da unit:")
+    
+    -- Coletar todas as passivas atuais
+    local currentPassives = {}
+    local passiveCount = 0
+    
+    for i, passive in pairs(unit.Passives) do
+        local passiveStr = passiveToString(passive)
+        if passiveStr then
+            currentPassives[passiveStr] = true
+            passiveCount = passiveCount + 1
+            print("  [" .. i .. "] " .. passiveStr .. " ✅")
+            
+            -- Validar se é uma passiva real
+            if isValidPassive(passiveStr) then
+                print("    └─ Passiva válida no PassiveStats")
+            else
+                print("    └─ ⚠️ Passiva não encontrada no PassiveStats")
+            end
+        else
+            print("  [" .. i .. "] " .. tostring(passive) .. " ❌ (ignorado)")
+        end
+    end
+    
+    print("📊 Total de passivas válidas: " .. passiveCount)
+    print("🎯 Procurando por:")
+    
+    -- Verificar cada passiva desejada
+    for _, desired in pairs(desiredPassives) do
+        local desiredStr = tostring(desired)
+        print("  - " .. desiredStr)
+        
+        -- Verificação direta
+        if currentPassives[desiredStr] then
+            print("🎉 ENCONTRADA (exata): " .. desiredStr)
+            return true, desiredStr
+        end
+        
+        -- Verificação parcial (case insensitive)
+        for currentPassive, _ in pairs(currentPassives) do
+            if string.lower(currentPassive) == string.lower(desiredStr) then
+                print("🎉 ENCONTRADA (case insensitive): " .. currentPassive)
+                return true, currentPassive
+            end
+        end
+        
+        -- Verificação por substring
+        for currentPassive, _ in pairs(currentPassives) do
+            if string.find(string.lower(currentPassive), string.lower(desiredStr)) or 
+               string.find(string.lower(desiredStr), string.lower(currentPassive)) then
+                print("🎉 ENCONTRADA (substring): " .. currentPassive)
+                return true, currentPassive
+            end
+        end
+    end
+    
+    return false, nil
+end
+
+-- FUNÇÃO PRINCIPAL: Detecção com retry melhorado
+local function detectDesiredPassive()
+    if not detectionConfig.enabled or not selectedUnit or not selectedPassives or not next(selectedPassives) then
+        return false
+    end
+    
+    print("\n🔍 === DETECÇÃO ROLL #" .. rollCount .. " ===")
+    
+    -- Tentar detecção múltiplas vezes
+    for attempt = 1, detectionConfig.maxRetries do
+        print("🔄 Tentativa " .. attempt .. "/" .. detectionConfig.maxRetries)
+        
+        -- Obter dados da unit
+        local currentUnit = getCurrentUnit()
+        if not currentUnit then
+            print("❌ Unit não encontrada, tentando novamente...")
+            task.wait(detectionConfig.retryDelay)
+            continue
+        end
+        
+        print("✅ Unit encontrada: " .. tostring(currentUnit.UID))
+        
+        -- Método 1: HasPassive (se disponível)
+        if HasPassive then
+            print("📡 Testando HasPassive...")
+            for _, desiredPassive in pairs(selectedPassives) do
+                if checkHasPassive(currentUnit, desiredPassive) then
+                    print("🎉 SUCESSO via HasPassive: " .. desiredPassive)
+                    return true
+                end
+            end
+            print("❌ HasPassive não encontrou nenhuma")
+        else
+            print("⚠️ HasPassive não disponível")
+        end
+        
+        -- Método 2: Detecção manual (sempre executar)
+        print("🔍 Executando detecção manual...")
+        local found, foundPassive = checkPassivesManual(currentUnit, selectedPassives)
+        if found then
+            print("🎉 SUCESSO via Manual: " .. foundPassive)
+            return true
+        end
+        
+        -- Se não é a última tentativa, aguardar
+        if attempt < detectionConfig.maxRetries then
+            print("⏳ Aguardando " .. detectionConfig.retryDelay .. "s antes da próxima tentativa...")
+            task.wait(detectionConfig.retryDelay)
+        end
+    end
+    
+    print("❌ Nenhuma passiva desejada encontrada após " .. detectionConfig.maxRetries .. " tentativas")
+    return false
+end
+
+-- Stop the rolling system
+local function stopRolling(reason)
+    rolling = false
+    detectionConfig.enabled = false
+    
+    if autoRollToggle then
+        pcall(function() autoRollToggle:SetValue(false) end)
+    end
+    
+    print("🛑 PARADO: " .. tostring(reason))
+    Library:Notify("🛑 " .. reason, 5)
+end
+
+-- Update passive display in UI
+local function updatePassiveDisplay(unit)
+    if not unit or not unit.Passives then
+        pcall(function() currentPassivesLabel:SetText("Passivas: N/A") end)
+        return
+    end
+    
+    local passiveList = {}
+    for _, passive in pairs(unit.Passives) do
+        local passiveStr = passiveToString(passive)
+        if passiveStr then
+            table.insert(passiveList, passiveStr)
+        end
+    end
+    
+    local displayText = "Passivas: " .. (#passiveList > 0 and table.concat(passiveList, ", ") or "Nenhuma")
+    pcall(function() currentPassivesLabel:SetText(displayText) end)
+end
+
+-- Get list of available units
+local function GetUnits()
+    local success, result = pcall(function()
+        local gameData = GameData:GetData()
+        if not gameData or not gameData.Pets then
+            return {"Nenhum pet encontrado"}
+        end
+        
+        local list = {}
+        for _, unit in pairs(gameData.Pets) do
+            if unit and unit.UID then
+                local displayName = unit.PetId or "Unknown"
+                if unit.CustomName and unit.CustomName ~= "" then
+                    displayName = displayName .. " (" .. unit.CustomName .. ")"
+                end
+                table.insert(list, tostring(unit.UID) .. " | " .. displayName)
+            end
+        end
+        
+        return #list > 0 and list or {"Nenhum pet encontrado"}
+    end)
+    
+    return success and result or {"Erro ao carregar pets"}
+end
+
+-- ===== UI SETUP =====
+
+local Window = Library:CreateWindow({ 
+    Title = "Luvwas Passive Roll", 
+    Center = true, 
+    AutoShow = true 
+})
+
+local Tabs = { 
+    Main = Window:AddTab("Main"),
+    Debug = Window:AddTab("Debug"),
+    Settings = Window:AddTab("Settings")
+}
+
+local LeftGroup = Tabs.Main:AddLeftGroupbox("Configuração")
+local RightGroup = Tabs.Main:AddRightGroupbox("Controles")
+local StatusGroup = Tabs.Main:AddRightGroupbox("Status")
+local DebugGroup = Tabs.Debug:AddLeftGroupbox("Debug & Test")
+
+-- Status indicators
+StatusGroup:AddLabel("GameData: " .. (GameData and "✅ OK" or "❌ Erro"))
+StatusGroup:AddLabel("HasPassive: " .. (HasPassive and "✅ Disponível" or "⚠️ Manual apenas"))
+StatusGroup:AddLabel("PassiveStats: " .. (PassiveStats and "✅ Disponível" or "⚠️ Não disponível"))
+local rollStatusLabel = StatusGroup:AddLabel("Status: Aguardando")
+local currentPassivesLabel = StatusGroup:AddLabel("Passivas: N/A")
+
+-- Unit selection
+local unitDropdown = LeftGroup:AddDropdown("UnitSelect", {
+    Values = GetUnits(),
+    Multi = false,
+    Text = "Selecione o Boneco",
+    AllowNull = true,
+    Search = true,
+})
+
+unitDropdown:OnChanged(function(val)
+    if val and not val:find("Erro") and not val:find("Nenhum") then
+        selectedUnit = tonumber(val:match("^(%d+)"))
+        Library:Notify("✅ Unit selecionada: " .. tostring(selectedUnit), 2)
+        
+        -- Show current passives
+        local unit = getCurrentUnit()
+        updatePassiveDisplay(unit)
+    else
+        selectedUnit = nil
+        pcall(function() currentPassivesLabel:SetText("Passivas: N/A") end)
+    end
+end)
+
+LeftGroup:AddButton("🔄 Atualizar Lista", function()
+    unitDropdown:SetValues(GetUnits())
+end)
+
+-- Machine selection
+local machineDropdown = LeftGroup:AddDropdown("MachineSelect", {
+    Values = {"Normal","Requiem","Summer24"},
+    Default = "Normal",
+    Multi = false,
+    Text = "Máquina",
+})
+
+-- Passive selection
+local passiveDropdown = LeftGroup:AddDropdown("PassiveSelect", {
+    Values = AllPassives["Normal"],
+    Default = {},
+    Multi = true,
+    Text = "Passivas Desejadas",
+})
+
+machineDropdown:OnChanged(function(val)
+    selectedMachine = val
+    passiveDropdown:SetValues(AllPassives[val] or AllPassives["Normal"])
+    passiveDropdown:SetValue({})
+    selectedPassives = {}
+    print("🔄 Máquina alterada para: " .. val)
+end)
+
+passiveDropdown:OnChanged(function(vals)
+    selectedPassives = {}
+    
+    if vals then
+        if type(vals) == "table" then
+            -- Método 1: ipairs
+            for i, passive in ipairs(vals) do
+                if type(passive) == "string" and passive ~= "" then
+                    table.insert(selectedPassives, passive)
+                end
+            end
+            
+            -- Método 2: pairs (caso ipairs não funcione)
+            if #selectedPassives == 0 then
+                for k, passive in pairs(vals) do
+                    if type(passive) == "string" and passive ~= "" then
+                        table.insert(selectedPassives, passive)
+                    elseif type(k) == "string" and k ~= "" and passive == true then
+                        table.insert(selectedPassives, k)
+                    end
+                end
+            end
+        elseif type(vals) == "string" then
+            table.insert(selectedPassives, vals)
+        end
+    end
+    
+    local count = #selectedPassives
+    if count > 0 then
+        Library:Notify("✅ " .. count .. " passivas selecionadas: " .. table.concat(selectedPassives, ", "), 3)
+    else
+        Library:Notify("⚠️ Nenhuma passiva selecionada", 2)
+    end
+end)
+
+-- Timing controls
+LeftGroup:AddSlider("RollDelay", {
+    Text = "Delay entre rolls (s)",
+    Default = 1.0,
+    Min = 0.1,
+    Max = 3,
+    Rounding = 1,
+}):OnChanged(function(val)
+    rollDelay = val
+end)
+
+LeftGroup:AddSlider("DetectionDelay", {
+    Text = "Delay base detecção (s)",
+    Default = 2.5,
+    Min = 1,
+    Max = 8,
+    Rounding = 1,
+}):OnChanged(function(val)
+    detectionConfig.baseDelay = val
+end)
+
+LeftGroup:AddSlider("MaxRetries", {
+    Text = "Tentativas de detecção",
+    Default = 5,
+    Min = 1,
+    Max = 10,
+    Rounding = 0,
+}):OnChanged(function(val)
+    detectionConfig.maxRetries = val
+end)
+
+-- MAIN AUTO ROLL TOGGLE
+autoRollToggle = RightGroup:AddToggle("AutoRoll", {
+    Text = "Start Auto Roll",
+    Default = false,
+})
+
+autoRollToggle:OnChanged(function(val)
+    if val then
+        -- Validation
+        if not selectedUnit then
+            Library:Notify("❌ Selecione um boneco primeiro!", 3)
+            autoRollToggle:SetValue(false)
+            return
+        end
+        
+        if not selectedPassives or not next(selectedPassives) then
+            Library:Notify("❌ Selecione pelo menos uma passiva!", 3)
+            autoRollToggle:SetValue(false)
+            return
+        end
+        
+        -- Start rolling
+        rolling = true
+        rollCount = 0
+        detectionConfig.enabled = true
+        rollStatusLabel:SetText("Status: 🎲 Iniciando...")
+        
+        -- DEBUG: Verificar passivas selecionadas antes de iniciar
+        print("\n🚀 === INICIANDO AUTO ROLL ===")
+        print("📋 Passivas selecionadas para busca:")
+        for i, passive in ipairs(selectedPassives) do
+            print("  [" .. i .. "] " .. tostring(passive) .. " (tipo: " .. type(passive) .. ")")
+        end
+        print("📊 Total: " .. #selectedPassives .. " passivas")
+        
+        local passiveList = {}
+        for _, p in pairs(selectedPassives) do
+            table.insert(passiveList, tostring(p))
+        end
+        
+        Library:Notify("🚀 Auto Roll iniciado! Procurando: " .. table.concat(passiveList, ", "), 4)
+        
+        -- MAIN ROLLING LOOP
+        task.spawn(function()
+            while rolling do
+                rollCount = rollCount + 1
+                rollStatusLabel:SetText("Status: 🎲 Roll #" .. rollCount)
+                
+                print("\n🎲 ========== ROLL #" .. rollCount .. " ==========")
+                
+                -- Execute roll
+                local rollSuccess, rollError = pcall(function()
+                    game:GetService("ReplicatedStorage").Remote.RollPassive:FireServer(
+                        selectedUnit, selectedMachine, true, 1
+                    )
+                end)
+                
+                if not rollSuccess then
+                    print("❌ Erro no roll: " .. tostring(rollError))
+                    stopRolling("Erro no roll: " .. tostring(rollError))
+                    break
+                end
+                
+                print("✅ Roll enviado com sucesso")
+                print("⏳ Aguardando " .. detectionConfig.baseDelay .. "s para sincronização...")
+                
+                -- Wait for server to process
+                task.wait(detectionConfig.baseDelay)
+                
+                -- Check if still rolling
+                if not rolling then 
+                    print("🛑 Sistema parado durante espera")
+                    break 
+                end
+                
+                -- Detect passives
+                print("🔍 Iniciando detecção de passivas...")
+                local found = detectDesiredPassive()
+                
+                if found then
+                    print("🎉 ========== PASSIVA DESEJADA ENCONTRADA! ==========")
+                    Library:Notify("🎉 PASSIVA ENCONTRADA! Sistema parado automaticamente!", 10)
+                    stopRolling("Passiva desejada encontrada!")
+                    break
+                end
+                
+                -- Update display
+                local unit = getCurrentUnit()
+                updatePassiveDisplay(unit)
+                
+                -- Check again if still rolling
+                if not rolling then 
+                    print("🛑 Sistema parado após detecção")
+                    break 
+                end
+                
+                -- Progress feedback
+                if rollCount % 5 == 0 then
+                    Library:Notify("📊 " .. rollCount .. " rolls realizados", 2)
+                end
+                
+                -- Wait before next roll
+                print("⏭️ Próximo roll em " .. rollDelay .. "s...")
+                task.wait(rollDelay)
+            end
+            
+            rollStatusLabel:SetText("Status: ⏹️ Parado")
+            print("🔚 Loop de rolling finalizado")
+        end)
+        
+    else
+        -- Stop rolling
+        stopRolling("Parado pelo usuário")
+        rollStatusLabel:SetText("Status: ⏹️ Parado")
+    end
+end)
+
+-- Emergency stop
+RightGroup:AddButton("Emergency Stop", function()
+    stopRolling("Emergency stop")
+    rollStatusLabel:SetText("Status: Stopped")
+    Library:Notify("System stopped!", 2)
+end)
+
+-- ===== DEBUG FUNCTIONS =====
+
+-- Show current passives
+DebugGroup:AddButton("🔍 Ver Passivas Atuais", function()
+    if not selectedUnit then
+        Library:Notify("❌ Selecione uma unit primeiro!", 2)
+        return
+    end
+    
+    local unit = getCurrentUnit()
+    if unit then
+        print("\n=== PASSIVAS DA UNIT " .. selectedUnit .. " ===")
+        
+        if unit.Passives and next(unit.Passives) then
+            for i, passive in pairs(unit.Passives) do
+                local passiveStr = passiveToString(passive)
+                if passiveStr then
+                    print("[" .. i .. "] " .. passiveStr .. " ✅")
+                    
+                    -- Validar no PassiveStats
+                    if isValidPassive(passiveStr) then
+                        print("    └─ Válida no PassiveStats ✅")
+                    else
+                        print("    └─ ⚠️ Não encontrada no PassiveStats")
+                    end
+                    
+                    -- Test HasPassive if available
+                    if HasPassive then
+                        for _, desired in pairs(selectedPassives) do
+                            if passiveStr == desired then
+                                local hasIt = checkHasPassive(unit, desired)
+                                print("    └─ HasPassive('" .. desired .. "') = " .. tostring(hasIt))
+                            end
+                        end
+                    end
+                else
+                    print("[" .. i .. "] " .. tostring(passive) .. " ❌ (ignorado)")
+                end
+            end
+        else
+            print("❌ Nenhuma passiva encontrada")
+        end
+        print("=====================================")
+        
+        updatePassiveDisplay(unit)
+    else
+        print("❌ Unit não encontrada!")
+    end
+    
+    Library:Notify("📋 Informações no console", 2)
+end)
+
+-- Test detection without rolling
+DebugGroup:AddButton("🧪 Testar Detecção", function()
+    if not selectedUnit or not selectedPassives or not next(selectedPassives) then
+        Library:Notify("❌ Configure unit e passivas primeiro!", 2)
+        return
+    end
+    
+    print("\n=== TESTE DE DETECÇÃO ===")
+    detectionConfig.enabled = true
+    
+    local found = detectDesiredPassive()
+    print("🎯 Resultado: " .. (found and "✅ PASSIVA ENCONTRADA!" or "❌ Passiva não encontrada"))
+    
+    detectionConfig.enabled = false
+    print("========================")
+    Library:Notify("🧪 Teste concluído - veja o console", 2)
+end)
+
+-- Single roll simulation
+DebugGroup:AddButton("🎯 Roll Único", function()
+    if not selectedUnit then
+        Library:Notify("❌ Selecione uma unit primeiro!", 2)
+        return
+    end
+    
+    print("\n=== ROLL ÚNICO ===")
+    
+    local rollSuccess = pcall(function()
+        game:GetService("ReplicatedStorage").Remote.RollPassive:FireServer(
+            selectedUnit, selectedMachine, true, 1
+        )
+    end)
+    
+    if rollSuccess then
+        print("✅ Roll enviado com sucesso")
+        Library:Notify("🎯 Roll único executado", 2)
+        
+        -- Auto-update display after delay
+        task.spawn(function()
+            task.wait(detectionConfig.baseDelay)
+            local unit = getCurrentUnit()
+            updatePassiveDisplay(unit)
+            print("🔄 Display atualizado")
+        end)
+    else
+        print("❌ Erro no roll")
+        Library:Notify("❌ Erro no roll único", 2)
+    end
+    
+    print("==================")
+end)
+
+-- ===== INITIALIZATION =====
+
+-- Theme and save managers
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+SaveManager:IgnoreThemeSettings()
+SaveManager:BuildConfigSection(Tabs.Settings)
+ThemeManager:ApplyToTab(Tabs.Settings)
+
+-- Load units after initialization
+task.spawn(function()
+    task.wait(1)
+    unitDropdown:SetValues(GetUnits())
+end)
+
+Library:Notify("🚀 Auto Roll FINAL WORKING FIX v8.0 carregado com sucesso!", 4)
+print("🎯 Auto Roll FINAL WORKING FIX v8.0 - Sistema otimizado com base no seu feedback!")
