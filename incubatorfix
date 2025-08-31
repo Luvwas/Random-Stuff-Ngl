@@ -1,1 +1,165 @@
+--// Serviços
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
 
+local ModuleScripts = ReplicatedStorage:WaitForChild("ModuleScripts")
+local Remote = ReplicatedStorage:WaitForChild("Remote")
+
+--// Remotes incubadora
+local UpgradeIncubator = Remote:WaitForChild("UpgradeIncubator")
+local AttemptIncubate = Remote:WaitForChild("AttemptIncubate")
+local AttemptWithdraw = Remote:WaitForChild("AttemptWithdrawIncubator")
+
+--// Store (GameData)
+local LocalDairebStore = require(ModuleScripts:WaitForChild("LocalDairebStore"))
+LocalDairebStore.WaitForInit()
+local GameDataStore = LocalDairebStore.GetStoreProxy("GameData")
+
+--// Rayfield
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+
+local Window = Rayfield:CreateWindow({
+    Name = "Incubadora FIX - By Luvwas ❤️",
+    LoadingTitle = "Loading...",
+    LoadingSubtitle = "Feito pros Moba <3",
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "LuvwasScripts",
+        FileName = "IncubadoraFIX"
+    }
+})
+
+local Tab = Window:CreateTab("🐣 Incubadora", 4483362458)
+
+----------------------------------------------------
+-- Níveis Incubadoras
+----------------------------------------------------
+local SectionLevels = Tab:CreateSection("📊 Status das Incubadoras")
+
+local Labels = {}
+local incubatorMap = {
+    ["A"] = "1",
+    ["B"] = "2",
+    ["C"] = "3",
+    ["D"] = "4",
+    ["E"] = "5",
+    ["F"] = "6",
+}
+
+for id, idx in pairs(incubatorMap) do
+    Labels[id] = Tab:CreateLabel("Incubadora " .. idx .. " → Carregando...")
+end
+
+-- Atualizador de níveis
+task.spawn(function()
+    while task.wait(2) do
+        local levels = GameDataStore:GetData("IncubatorLevels") or {}
+        for id, lbl in pairs(Labels) do
+            local lvl = levels[id] or 0
+            lbl:Set("⭐ Incubadora " .. incubatorMap[id] .. " ("..id..") → Level " .. lvl)
+        end
+    end
+end)
+
+----------------------------------------------------
+-- Escolher Incubadora
+----------------------------------------------------
+local incubatorChoice = "A"
+
+local DropdownIncubator = Tab:CreateDropdown({
+    Name = "📍 Escolher Incubadora",
+    Options = {"1️⃣ Incubadora (A)", "2️⃣ Incubadora (B)", "3️⃣ Incubadora (C)", "4️⃣ Incubadora (D)", "5️⃣ Incubadora (E)", "6️⃣ Incubadora (F)"},
+    CurrentOption = {"1️⃣ Incubadora (A)"},
+    Callback = function(opt)
+        local map = {
+            ["1️⃣ Incubadora (A)"]="A",
+            ["2️⃣ Incubadora (B)"]="B",
+            ["3️⃣ Incubadora (C)"]="C",
+            ["4️⃣ Incubadora (D)"]="D",
+            ["5️⃣ Incubadora (E)"]="E",
+            ["6️⃣ Incubadora (F)"]="F"
+        }
+        incubatorChoice = map[opt[1]] or "A"
+        Rayfield:Notify({Title="✅ Selecionado", Content="Agora usando a incubadora "..incubatorChoice})
+    end,
+})
+
+----------------------------------------------------
+-- Pets Dropdown
+----------------------------------------------------
+local petChoice = nil
+local DropdownPets
+
+local function refreshPets()
+    local pets = GameDataStore:GetData("Pets") or {}
+    local petOptions = {}
+
+    for _, pet in ipairs(pets) do
+        local uid = tostring(pet.UID)
+        local name = pet.PetId or "Unknown"
+        table.insert(petOptions, string.format("🐾 %s  |  UID: %s", name, uid))
+    end
+
+    if DropdownPets then
+        DropdownPets:Set(petOptions)
+    else
+        DropdownPets = Tab:CreateDropdown({
+            Name = "🐾 Escolher Pet",
+            Options = petOptions,
+            CurrentOption = {},
+            Callback = function(opt)
+                local match = string.match(opt[1], "UID:%s*(%d+)")
+                petChoice = tonumber(match)
+                Rayfield:Notify({Title="🐾 Pet Selecionado", Content=opt[1]})
+            end,
+        })
+    end
+end
+
+Tab:CreateButton({
+    Name = "🔄 Atualizar Lista de Pets",
+    Callback = refreshPets,
+})
+
+----------------------------------------------------
+-- Botões de Controle
+----------------------------------------------------
+Tab:CreateSection("⚙️ Controles")
+
+Tab:CreateButton({
+    Name = "📥 Colocar Pet no Incubador",
+    Callback = function()
+        if petChoice and incubatorChoice then
+            AttemptIncubate:FireServer(petChoice, incubatorChoice)
+            Rayfield:Notify({Title="✅ Sucesso", Content="Pet enviado para incubadora "..incubatorChoice})
+        else
+            Rayfield:Notify({Title="❌ Erro", Content="Selecione incubadora e pet primeiro"})
+        end
+    end,
+})
+
+Tab:CreateButton({
+    Name = "📤 Retirar Pet do Incubador",
+    Callback = function()
+        if incubatorChoice then
+            AttemptWithdraw:FireServer(incubatorChoice)
+            Rayfield:Notify({Title="✅ Sucesso", Content="Pet retirado da incubadora "..incubatorChoice})
+        end
+    end,
+})
+
+Tab:CreateButton({
+    Name = "⬆️ Upar Incubador",
+    Callback = function()
+        if incubatorChoice then
+            UpgradeIncubator:FireServer(incubatorChoice)
+            Rayfield:Notify({Title="⚡ Upgrade", Content="Upgrade solicitado para "..incubatorChoice})
+        end
+    end,
+})
+
+----------------------------------------------------
+-- Auto Init
+----------------------------------------------------
+refreshPets()
