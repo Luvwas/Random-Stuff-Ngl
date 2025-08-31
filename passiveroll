@@ -47,7 +47,7 @@ end)
 local selectedUnit, selectedMachine = nil, "Normal"
 local selectedPassives = {}
 local rolling = false
-local rollDelay = 1.0
+local rollDelay = 0.2  -- MUITO MAIS RÁPIDO!
 local rollCount = 0
 local autoRollToggle = nil
 
@@ -64,9 +64,9 @@ local logLabels = {} -- Array de labels para cada entrada do log
 
 -- Detection configuration
 local detectionConfig = {
-    baseDelay = 1.5,
-    maxRetries = 3,
-    retryDelay = 0.5,
+    baseDelay = 0.3,  -- MAIS RÁPIDO!
+    maxRetries = 2,    -- MENOS TENTATIVAS = MAIS RÁPIDO
+    retryDelay = 0.1,  -- DELAY MÍNIMO
     enabled = false
 }
 
@@ -506,7 +506,7 @@ end)
 -- Timing controls
 LeftGroup:AddSlider("RollDelay", {
     Text = "Delay entre rolls (s)",
-    Default = 1.0,
+    Default = 0.2,  -- VALOR PADRÃO MAIS RÁPIDO!
     Min = 0.1,
     Max = 3,
     Rounding = 1,
@@ -516,8 +516,8 @@ end)
 
 LeftGroup:AddSlider("DetectionDelay", {
     Text = "Delay base detecção (s)",
-    Default = 1.5,
-    Min = 0.5,
+    Default = 0.3,  -- VALOR PADRÃO MAIS RÁPIDO!
+    Min = 0.1,
     Max = 8,
     Rounding = 1,
 }):OnChanged(function(val)
