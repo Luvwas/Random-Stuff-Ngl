@@ -252,7 +252,7 @@ local units = {
     "Investigator",
     "Denis",
     "Ultimis",
-    "Capsule Girl",
+    "CapsuleGirl",
     "Shielder",
     "Peem"
 }
