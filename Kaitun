@@ -1,0 +1,1063 @@
+--[[
+    Kaitun + Auto Attack Script Integrado by Luvwas & Claude
+    
+    VERSION 2.0 INTEGRADO:
+    - ADICIONADO: Sistema completo de Auto Attack
+    - ADICIONADO: Sistema de teleporte avançado
+    - INTEGRADO: Kaitun original com detecção robusta
+    - MELHORADO: UI unificada com controles completos
+]]
+
+--// Bibliotecas
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/Library.lua"))()
+
+--// Serviços & Módulos do Jogo
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
+local CollectionService = game:GetService("CollectionService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+local RemoteFolder = ReplicatedStorage:WaitForChild("Remote")
+local RollPassiveRemote = RemoteFolder:WaitForChild("RollPassive")
+local TravelRemote = RemoteFolder:WaitForChild("AttemptTravel")
+local RedeemCodeRemote = RemoteFolder:WaitForChild("RedeemCode")
+local UpgradeArtefactRemote = RemoteFolder:WaitForChild("UpgradeArtefact")
+local PrestigeArtefactRemote = RemoteFolder:WaitForChild("PrestigeArtefact")
+local UseItemRemote = RemoteFolder:WaitForChild("UseItem")
+local ManagePetRemote = RemoteFolder:WaitForChild("ManagePet")
+
+-- Bindable para compatibilidade
+local Bindable = ReplicatedStorage:FindFirstChild("Bindable")
+
+local LocalDairebStore, GameData, HasPassive
+pcall(function()
+    LocalDairebStore = require(ReplicatedStorage.ModuleScripts.LocalDairebStore)
+    LocalDairebStore:WaitForInit()
+    GameData = LocalDairebStore.GetStoreProxy("GameData")
+    HasPassive = require(ReplicatedStorage.ModuleScripts.HasPassive)
+end)
+
+if not GameData then Library:Notify("❌ Falha crítica ao carregar GameData.", 10); return end
+
+--==============================================================================
+--// CONFIGURAÇÕES GLOBAIS
+--==============================================================================
+
+-- Configuração do Kaitun
+local kaitunRunning = false
+local multiUnitQueue = {}
+local queueLabels = {} 
+local kaitunStatusLabel, artifactLevelLabel, artifactPrestigeLabel = nil, nil, nil
+local MAX_QUEUE_LABELS = 5
+
+-- Configuração do Auto Attack
+local Config = {
+    -- Auto Attack Settings
+    AutoAttackEnabled = false,
+    AttackRange = 100,
+    AttackAllPets = true,
+    AttackDelay = 0.1,
+    AutoTargetStrongest = false,
+    
+    -- Teleport Settings
+    TeleportToEnemy = false,
+    TeleportMode = "Center", -- "Center", "Behind", "Above", "Side"
+    TeleportDelay = 0.5,
+    WaitBetweenTeleports = true,
+    SmoothTeleport = false,
+    TeleportHeight = 0,
+
+    -- Display Settings
+    ShowEnemyInfo = true,
+    UpdateFrequency = 0.1,
+}
+
+-- Variáveis do Auto Attack
+local currentTarget = nil
+local attackConnection = nil
+local TeleportingTo = nil
+local lastTeleportTime = 0
+local positionLockMover = nil
+
+-- UI Labels para Auto Attack
+local UILabels = {
+    TargetEnemy = nil,
+    EnemyDisplayName = nil,
+    EnemyHealth = nil,
+    Distance = nil,
+    EnemiesCount = nil,
+    PetsCount = nil,
+    SystemStatus = nil,
+    TeleportStatus = nil,
+}
+
+--// Configuração de Detecção Melhorada (Kaitun)
+local detectionConfig = {
+    baseDelay = 0.5,
+    maxRetries = 4,
+    retryDelay = 0.3,
+    preCheckDelay = 0.2,
+}
+
+--==============================================================================
+--// FUNÇÕES DO AUTO ATTACK
+--==============================================================================
+
+-- Helper function para formatar números
+local function formatNumber(num)
+    if num == "N/A" or num == nil then return "N/A" end
+    if type(num) ~= "number" then return tostring(num) end
+    
+    if num >= 1e12 then
+        return string.format("%.2fT", num / 1e12)
+    elseif num >= 1e9 then
+        return string.format("%.2fB", num / 1e9)
+    elseif num >= 1e6 then
+        return string.format("%.2fM", num / 1e6)
+    elseif num >= 1e3 then
+        return string.format("%.2fK", num / 1e3)
+    else
+        return string.format("%.0f", num)
+    end
+end
+
+-- Detectar container de remotes
+local function detectRemoteContainer()
+    return ReplicatedStorage:FindFirstChild("Remote") or ReplicatedStorage:FindFirstChild("Remotes") or RemoteFolder
+end
+
+-- Safe remote calling
+local function safeFireRemote(container, name, ...)
+    local args = {...}
+    pcall(function()
+        if not container then return end
+        local r = container:FindFirstChild(name)
+        if r and r.FireServer then r:FireServer(unpack(args)) end
+    end)
+end
+
+-- Obter pets disponíveis
+local function getAvailablePets()
+    local pets = {}
+    local folder = workspace:FindFirstChild("Pets")
+    if not folder then return pets end
+    
+    for _, p in ipairs(folder:GetChildren()) do
+        if p:FindFirstChild("Data") and p.Data:FindFirstChild("Owner") and p.Data.Owner.Value == LocalPlayer then
+            table.insert(pets, p)
+        end
+    end
+    return pets
+end
+
+-- Sistema de detecção de inimigos
+local function findNearbyEnemies()
+    if not (LocalPlayer.Character and LocalPlayer.Character.PrimaryPart) then return {} end
+    
+    local pos = LocalPlayer.Character.PrimaryPart.Position
+    local enemies = {}
+    
+    for _, enemy in pairs(CollectionService:GetTagged("Attackable")) do
+        if enemy.PrimaryPart then
+            local distance = (enemy.PrimaryPart.Position - pos).Magnitude
+            if distance <= Config.AttackRange then
+                local enemyInfo = {
+                    model = enemy,
+                    distance = distance,
+                    name = enemy.Name,
+                    displayName = "N/A",
+                    health = "N/A",
+                    maxHealth = "N/A",
+                    healthPercent = 0
+                }
+                
+                -- Get display name
+                if enemy:FindFirstChild("DisplayName") and enemy.DisplayName:IsA("StringValue") then
+                    enemyInfo.displayName = enemy.DisplayName.Value
+                elseif enemy:FindFirstChild("DisplayName") and enemy.DisplayName:IsA("TextLabel") then
+                    enemyInfo.displayName = enemy.DisplayName.Text
+                end
+                
+                -- Get health info
+                local healthFound = false
+                if enemy:FindFirstChild("Health") then
+                    if enemy.Health:IsA("NumberValue") then
+                        enemyInfo.health = enemy.Health.Value
+                        healthFound = true
+                    elseif enemy.Health:FindFirstChild("Value") then
+                        enemyInfo.health = enemy.Health.Value.Value or enemy.Health.Value
+                        if enemy.Health:FindFirstChild("MaxValue") then
+                            enemyInfo.maxHealth = enemy.Health.MaxValue.Value or enemy.Health.MaxValue
+                            if enemyInfo.maxHealth > 0 then
+                                enemyInfo.healthPercent = (enemyInfo.health / enemyInfo.maxHealth) * 100
+                            end
+                        end
+                        healthFound = true
+                    end
+                end
+                
+                if not healthFound and enemy:FindFirstChild("Humanoid") then
+                    enemyInfo.health = enemy.Humanoid.Health
+                    enemyInfo.maxHealth = enemy.Humanoid.MaxHealth
+                    if enemyInfo.maxHealth > 0 then
+                        enemyInfo.healthPercent = (enemyInfo.health / enemyInfo.maxHealth) * 100
+                    end
+                end
+                
+                table.insert(enemies, enemyInfo)
+            end
+        end
+    end
+    
+    -- Sorting
+    if Config.AutoTargetStrongest then
+        table.sort(enemies, function(a, b) 
+            if type(a.health) == "number" and type(b.health) == "number" then
+                return a.health > b.health
+            end
+            return a.distance < b.distance
+        end)
+    else
+        table.sort(enemies, function(a, b) return a.distance < b.distance end)
+    end
+    
+    return enemies
+end
+
+-- Calcular posição de teleporte
+local function calculateTeleportPosition(enemyPart)
+    if not enemyPart then return nil end
+    
+    local enemyPos = enemyPart.Position
+    local baseHeight = Config.TeleportHeight
+    
+    if Config.TeleportMode == "Center" then
+        return enemyPos + Vector3.new(0, baseHeight, 0)
+    elseif Config.TeleportMode == "Behind" then
+        local enemyLook = enemyPart.CFrame.LookVector
+        return enemyPos - (enemyLook * 8) + Vector3.new(0, baseHeight, 0)
+    elseif Config.TeleportMode == "Above" then
+        return enemyPos + Vector3.new(0, 15 + baseHeight, 0)
+    elseif Config.TeleportMode == "Side" then
+        local enemyRight = enemyPart.CFrame.RightVector
+        local side = math.random() > 0.5 and 1 or -1
+        return enemyPos + (enemyRight * (6 * side)) + Vector3.new(0, baseHeight, 0)
+    end
+    
+    return enemyPos + Vector3.new(0, baseHeight, 0)
+end
+
+-- Teleporte suave
+local function smoothTeleportTo(pos, callback)
+    if not (LocalPlayer.Character and LocalPlayer.Character.PrimaryPart) then 
+        if callback then callback() end 
+        return 
+    end
+    
+    local currentTime = tick()
+    if TeleportingTo or (Config.WaitBetweenTeleports and (currentTime - lastTeleportTime) < Config.TeleportDelay) then
+        return
+    end
+    
+    local hrp = LocalPlayer.Character.PrimaryPart
+    TeleportingTo = true
+    lastTeleportTime = currentTime
+    
+    if Config.SmoothTeleport then
+        local dist = (hrp.Position - pos).Magnitude
+        local duration = math.clamp(0.2 + dist / 200, 0.2, 0.8) 
+        local tweenInfo = TweenInfo.new(
+            duration, 
+            Enum.EasingStyle.Sine,
+            Enum.EasingDirection.Out
+        )
+        local tween = TweenService:Create(hrp, tweenInfo, {CFrame = CFrame.new(pos)})
+        
+        tween.Completed:Connect(function()
+            TeleportingTo = nil
+            if callback then callback() end
+        end)
+        
+        tween:Play()
+    else
+        hrp.CFrame = CFrame.new(pos, pos + Vector3.new(0, 0, 1))
+        TeleportingTo = nil
+        if callback then callback() end
+    end
+end
+
+-- Enviar pet para atacar
+local function sendPetToTarget(pet, target)
+    pcall(function()
+        if Bindable and Bindable:FindFirstChild("SendPet") then
+            Bindable.SendPet:Fire(target, false, false)
+        else
+            local container = detectRemoteContainer()
+            if container then
+                local remoteNames = {"SendPet", "AttackTarget", "PetAttack"}
+                for _, remoteName in ipairs(remoteNames) do
+                    local remote = container:FindFirstChild(remoteName)
+                    if remote and remote.FireServer then
+                        remote:FireServer(pet, target, 1)
+                        break
+                    end
+                end
+            end
+        end
+    end)
+end
+
+-- Lógica principal do auto attack
+local function autoAttackTick()
+    if not Config.AutoAttackEnabled or TeleportingTo then return end
+    
+    local enemies = findNearbyEnemies()
+    if #enemies == 0 then
+        currentTarget = nil
+        if positionLockMover then
+            positionLockMover:Destroy()
+            positionLockMover = nil
+        end
+        return
+    end
+    
+    local pets = getAvailablePets()
+    if #pets == 0 then return end
+    
+    currentTarget = enemies[1]
+    local targetEnemy = currentTarget.model
+
+    local function engageTarget()
+        if Config.TeleportToEnemy and targetEnemy.PrimaryPart then
+             if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
+                local teleportPos = calculateTeleportPosition(targetEnemy.PrimaryPart)
+                if not positionLockMover or positionLockMover.Parent ~= LocalPlayer.Character.PrimaryPart then
+                    if positionLockMover then positionLockMover:Destroy() end
+                    positionLockMover = Instance.new("BodyPosition")
+                    positionLockMover.Name = "LuvwasHubPositionLock"
+                    positionLockMover.Parent = LocalPlayer.Character.PrimaryPart
+                    positionLockMover.MaxForce = Vector3.new(40000, 40000, 40000)
+                    positionLockMover.D = 250
+                    positionLockMover.P = 10000
+                end
+                positionLockMover.Position = teleportPos
+            end
+        end
+
+        if Config.AttackAllPets then
+            for i = 1, math.min(#pets, #enemies) do
+                if pets[i] and enemies[i] and enemies[i].model then
+                    sendPetToTarget(pets[i], enemies[i].model)
+                    task.wait(Config.AttackDelay)
+                end
+            end
+        else
+            if pets[1] and targetEnemy then
+                sendPetToTarget(pets[1], targetEnemy)
+            end
+        end
+    end
+    
+    if Config.TeleportToEnemy and targetEnemy.PrimaryPart then
+        local teleportPos = calculateTeleportPosition(targetEnemy.PrimaryPart)
+        if teleportPos and (LocalPlayer.Character.PrimaryPart.Position - teleportPos).Magnitude > 3 then
+            smoothTeleportTo(teleportPos, engageTarget)
+        else
+            engageTarget()
+        end
+    else
+        engageTarget()
+    end
+end
+
+-- Atualizar UI do Auto Attack
+local function updateAutoAttackUI()
+    if not Config.ShowEnemyInfo then return end
+    
+    local enemies = findNearbyEnemies()
+    local pets = getAvailablePets()
+    
+    if UILabels.EnemiesCount then
+        UILabels.EnemiesCount:SetText("Inimigos na área: " .. #enemies)
+    end
+    if UILabels.PetsCount then
+        UILabels.PetsCount:SetText("Pets disponíveis: " .. #pets)
+    end
+    
+    if UILabels.SystemStatus then
+        if Config.AutoAttackEnabled then 
+            UILabels.SystemStatus:SetText("Status: Ativo ✅") 
+        else 
+            UILabels.SystemStatus:SetText("Status: Desativado ❌") 
+        end
+    end
+    
+    if UILabels.TeleportStatus then
+        if Config.TeleportToEnemy then
+            local timeSinceTeleport = tick() - lastTeleportTime
+            if lastTeleportTime > 0 and timeSinceTeleport < 1000 then 
+                UILabels.TeleportStatus:SetText(string.format("Último TP: %.1fs atrás", timeSinceTeleport)) 
+            else 
+                UILabels.TeleportStatus:SetText("Último TP: Aguardando...") 
+            end
+        else
+            UILabels.TeleportStatus:SetText("Teleporte: Desativado")
+        end
+    end
+    
+    if currentTarget then
+        if UILabels.TargetEnemy then
+            UILabels.TargetEnemy:SetText("Alvo: " .. currentTarget.name)
+        end
+        if UILabels.EnemyDisplayName then
+            UILabels.EnemyDisplayName:SetText("Nome: " .. currentTarget.displayName)
+        end
+        if UILabels.EnemyHealth then
+            local healthText = "N/A"
+            if type(currentTarget.health) == "number" then
+                if type(currentTarget.maxHealth) == "number" and currentTarget.maxHealth > 0 then
+                    healthText = string.format("%.0f/%.0f (%.1f%%)", currentTarget.health, currentTarget.maxHealth, currentTarget.healthPercent)
+                else
+                    healthText = formatNumber(currentTarget.health)
+                end
+            end
+            UILabels.EnemyHealth:SetText("Vida: " .. healthText)
+        end
+        if UILabels.Distance then
+            UILabels.Distance:SetText("Distância: " .. string.format("%.1f studs", currentTarget.distance))
+        end
+    else
+        if UILabels.TargetEnemy then UILabels.TargetEnemy:SetText("Alvo: Nenhum") end
+        if UILabels.EnemyDisplayName then UILabels.EnemyDisplayName:SetText("Nome: N/A") end
+        if UILabels.EnemyHealth then UILabels.EnemyHealth:SetText("Vida: N/A") end
+        if UILabels.Distance then UILabels.Distance:SetText("Distância: 0") end
+    end
+end
+
+--==============================================================================
+--// FUNÇÕES DO KAITUN (ORIGINAL)
+--==============================================================================
+
+local function passiveToString(passive)
+    if passive == nil then return nil end
+    
+    if type(passive) == "string" and passive ~= "" and passive ~= "nil" then 
+        return passive 
+    end
+    
+    if type(passive) == "number" then 
+        return tostring(passive) 
+    end
+    
+    local str = tostring(passive)
+    if str and str ~= "" and str ~= "nil" and str ~= "false" and str ~= "true" then
+        return str
+    end
+    
+    return nil
+end
+
+local function getUnitByUID(uid)
+    local success, result = pcall(function()
+        local gameData = GameData:GetData()
+        if not gameData or not gameData.Pets then return nil end
+        
+        for _, unit in pairs(gameData.Pets) do
+            if unit and unit.UID == uid then
+                return unit
+            end
+        end
+        return nil
+    end)
+    
+    return success and result or nil
+end
+
+local function getUnitDisplayName(uid)
+    local unit = getUnitByUID(uid)
+    if not unit then return "ID: "..tostring(uid) end
+    
+    local displayName = unit.PetId or "Unknown"
+    if unit.CustomName and unit.CustomName ~= "" then
+        displayName = unit.CustomName
+    end
+    return displayName
+end
+
+local function checkHasPassive(unit, passiveName)
+    if not HasPassive or not unit or not passiveName then 
+        return false 
+    end
+    
+    local methods = {
+        function() return HasPassive(unit, passiveName) end,
+        function() return HasPassive.HasPassive(unit, passiveName) end,
+        function() return HasPassive.Check(unit, passiveName) end,
+        function() return HasPassive(unit.UID, passiveName) end
+    }
+    
+    for _, method in ipairs(methods) do
+        local success, result = pcall(method)
+        if success and result then
+            return true
+        end
+    end
+    
+    return false
+end
+
+local function checkPassivesManual(unit, desiredPassives)
+    if not unit or not unit.Passives or not desiredPassives then 
+        return false, nil 
+    end
+    
+    local currentPassives = {}
+    
+    for i, passive in pairs(unit.Passives) do
+        local passiveStr = passiveToString(passive)
+        if passiveStr then
+            currentPassives[passiveStr] = true
+        end
+    end
+    
+    for _, desired in pairs(desiredPassives) do
+        local desiredStr = tostring(desired)
+        
+        if currentPassives[desiredStr] then
+            return true, desiredStr
+        end
+        
+        for currentPassive, _ in pairs(currentPassives) do
+            if string.lower(currentPassive) == string.lower(desiredStr) then
+                return true, currentPassive
+            end
+        end
+    end
+    
+    return false, nil
+end
+
+local function detectDesiredPassive(unitUID, desiredPassives)
+    if not unitUID or not desiredPassives or not next(desiredPassives) then
+        return false, nil
+    end
+    
+    for attempt = 1, detectionConfig.maxRetries do
+        local currentUnit = getUnitByUID(unitUID)
+        if not currentUnit then
+            print("Tentativa " .. attempt .. ": Unit não encontrada, aguardando...")
+            task.wait(detectionConfig.retryDelay)
+            continue
+        end
+        
+        if HasPassive then
+            for _, desiredPassive in pairs(desiredPassives) do
+                if checkHasPassive(currentUnit, desiredPassive) then
+                    print("✅ HasPassive detectou: " .. desiredPassive)
+                    return true, desiredPassive
+                end
+            end
+        end
+        
+        local found, foundPassive = checkPassivesManual(currentUnit, desiredPassives)
+        if found then
+            print("✅ Verificação manual detectou: " .. foundPassive)
+            return true, foundPassive
+        end
+        
+        if attempt < detectionConfig.maxRetries then
+            task.wait(detectionConfig.retryDelay)
+        end
+    end
+    
+    return false, nil
+end
+
+local function GetUnits()
+    local success, result = pcall(function()
+        local gameData = GameData:GetData()
+        if not gameData or not gameData.Pets then
+            return {}
+        end
+            
+        local list = {}
+        for _, unit in pairs(gameData.Pets) do
+            if unit and unit.UID then
+                table.insert(list, { 
+                    uid = unit.UID, 
+                    name = getUnitDisplayName(unit.UID), 
+                    completed = false 
+                })
+            end
+        end
+        
+        return list
+    end)
+    
+    return success and result or {}
+end
+
+local function updateStatus(text)
+    if kaitunStatusLabel then pcall(function() kaitunStatusLabel:SetText("Status: " .. text) end) end
+    Library:Notify("⚙️ " .. text, 3)
+    print("🔧 Status: " .. text)
+end
+
+local function updateQueueDisplay(currentIndex)
+    for i = 1, MAX_QUEUE_LABELS do
+        if queueLabels[i] then
+            local text = string.format("%d. [Vazio]", i)
+            if multiUnitQueue[i] then
+                local unitData = multiUnitQueue[i]
+                local statusIcon = "⏳" 
+                if unitData.completed then statusIcon = "✅" 
+                elseif i == currentIndex then statusIcon = "🎲" end
+                local shortName = unitData.name:sub(1, 15)
+                text = string.format("%d. %s %s", i, shortName, statusIcon)
+            end
+            pcall(function() queueLabels[i]:SetText(text) end)
+        end
+    end
+end
+
+local function start_artifact_spammer()
+    updateStatus("1/8: Spam de artefatos ATIVO...")
+    while kaitunRunning do
+        pcall(function() UpgradeArtefactRemote:FireServer("Drops") end)
+        pcall(function() PrestigeArtefactRemote:FireServer("Drops") end)
+        task.wait(0.01)
+    end
+end
+
+local function kaitun_function(toggle)
+    print("🚀 Iniciando Kaitun v2.0 Integrado...")
+    
+    task.spawn(start_artifact_spammer)
+    updateStatus("2/8: Resgatando Código...")
+    pcall(function() RedeemCodeRemote:InvokeServer("afsxotw!") end)
+    task.wait(1)
+    if not kaitunRunning then return end
+
+    updateStatus("3/8: Teleportando para Summer25...")
+    pcall(function() TravelRemote:InvokeServer("Summer25") end)
+    local summerWorld = Workspace.Worlds:WaitForChild("Summer25", 15)
+    if not summerWorld then 
+        updateStatus("❌ Falha ao carregar o mundo.") 
+        kaitunRunning = false 
+        return 
+    end
+    task.wait(2)
+    if not kaitunRunning then return end
+
+    updateStatus("4/8: Movendo para a máquina...")
+    local machine = summerWorld:WaitForChild("Passive", 10)
+    local humanoidRootPart = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if machine and humanoidRootPart then 
+        humanoidRootPart.CFrame = machine:GetPivot() * CFrame.new(0, 5, 5) 
+    end
+    task.wait(1)
+    if not kaitunRunning then return end
+
+    updateStatus("5/8: Usando poções de drop...")
+    for i = 1, 20 do 
+        if not kaitunRunning then break end
+        pcall(function() UseItemRemote:FireServer("EasterDropsBoost") end)
+        task.wait(0.1) 
+    end
+    if not kaitunRunning then return end
+
+    updateStatus("6/8: Carregando lista de pets...")
+    multiUnitQueue = GetUnits()
+    if #multiUnitQueue == 0 then 
+        updateStatus("❌ Nenhum boneco encontrado.") 
+        kaitunRunning = false 
+        return 
+    end
+    
+    print("📋 Encontrados " .. #multiUnitQueue .. " pets para processar")
+    local desiredPassive = "SummerGenerosity"
+    updateStatus("7/8: Processando passiva '" .. desiredPassive .. "'...")
+
+    local totalProcessed = 0
+    local totalCompleted = 0
+
+    for i, unitData in ipairs(multiUnitQueue) do
+        if not kaitunRunning then break end
+        
+        totalProcessed = totalProcessed + 1
+        updateQueueDisplay(i)
+        
+        print("\n🎲 Processando " .. unitData.name .. " (" .. i .. "/" .. #multiUnitQueue .. ")")
+        
+        task.wait(detectionConfig.preCheckDelay)
+        local alreadyHas, existingPassive = detectDesiredPassive(unitData.uid, {desiredPassive})
+        
+        if alreadyHas then
+            print("✅ " .. unitData.name .. " já possui " .. existingPassive .. "!")
+            Library:Notify("✅ " .. unitData.name .. " já tem " .. existingPassive, 3)
+            unitData.completed = true
+            totalCompleted = totalCompleted + 1
+        else
+            print("🔄 " .. unitData.name .. " precisa da passiva, iniciando rolls...")
+            local rollCountUnit = 0
+            local maxRollsPerUnit = 100
+            
+            while not unitData.completed and kaitunRunning and rollCountUnit < maxRollsPerUnit do
+                rollCountUnit = rollCountUnit + 1
+                
+                print("🎲 Roll #" .. rollCountUnit .. " para " .. unitData.name)
+                Library:Notify(string.format("🎲 %s - Roll %d", unitData.name, rollCountUnit), 2)
+                
+                local rollSuccess = pcall(function() 
+                    RollPassiveRemote:FireServer(unitData.uid, "Summer24", true, 1) 
+                end)
+                
+                if not rollSuccess then
+                    print("❌ Erro no roll para " .. unitData.name)
+                    break
+                end
+                
+                task.wait(detectionConfig.baseDelay)
+                
+                local gotIt, gotPassiveName = detectDesiredPassive(unitData.uid, {desiredPassive})
+
+                if gotIt then
+                    print("🎉 " .. unitData.name .. " obteve " .. gotPassiveName .. " em " .. rollCountUnit .. " rolls!")
+                    Library:Notify(string.format("🎉 %s obteve %s!", unitData.name, gotPassiveName), 5)
+                    unitData.completed = true
+                    totalCompleted = totalCompleted + 1
+                    break
+                end
+                
+                task.wait(0.1)
+            end
+            
+            if rollCountUnit >= maxRollsPerUnit then
+                print("⚠️ Limite de rolls atingido para " .. unitData.name)
+                Library:Notify("⚠️ Limite atingido para " .. unitData.name, 3)
+            end
+        end
+        
+        updateQueueDisplay(i)
+        
+        if i < #multiUnitQueue then
+            task.wait(0.5)
+        end
+    end
+
+    if not kaitunRunning then 
+        updateStatus("🛑 Processo interrompido.") 
+        return 
+    end
+    
+    print("📊 Processamento concluído: " .. totalCompleted .. "/" .. totalProcessed .. " pets com SummerGenerosity")
+    
+    updateStatus("8/9: Teleportando para Tower...")
+    pcall(function() TravelRemote:InvokeServer("Tower") end)
+    local towerWorld = Workspace.Worlds:WaitForChild("Tower", 15)
+    if not towerWorld then 
+        updateStatus("❌ Falha ao carregar Tower.") 
+        kaitunRunning = false 
+        return 
+    end
+    task.wait(2)
+    if not kaitunRunning then return end
+    
+    updateStatus("8/9: Movendo para SpawnLocation...")
+    local spawnLocation = towerWorld:WaitForChild("Spawns", 10)
+    if spawnLocation then
+        spawnLocation = spawnLocation:WaitForChild("SpawnLocation", 10)
+    end
+    local humanoidRootPart = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if spawnLocation and humanoidRootPart then 
+        humanoidRootPart.CFrame = spawnLocation:GetPivot() * CFrame.new(0, 5, 5)
+        print("🏰 Teleportado para SpawnLocation na Tower")
+    end
+    task.wait(1)
+    if not kaitunRunning then return end
+    
+    updateStatus("9/9: Equipando pets...")
+    for i = 1, 3 do
+        if not kaitunRunning then break end
+        if multiUnitQueue[i] then
+            pcall(function() ManagePetRemote:FireServer(multiUnitQueue[i].uid, "Equip", i) end)
+            Library:Notify(string.format("🐾 Equipando %s no slot %d", multiUnitQueue[i].name, i), 2)
+            task.wait(0.3)
+        end
+    end
+
+    updateStatus("✅ Kaitun Concluído!")
+    Library:Notify("🏆 Ciclo completo! " .. totalCompleted .. " pets processados", 10)
+    print("🏆 Kaitun v2.0 Integrado finalizado com sucesso!")
+    kaitunRunning = false
+    pcall(function() toggle:SetValue(false) end)
+end
+
+--==============================================================================
+--// SETUP DA UI INTEGRADA
+--==============================================================================
+
+local Window = Library:CreateWindow({ 
+    Title = "Luvwas Hub v2.0 - Kaitun + Auto Attack", 
+    Center = true, 
+    AutoShow = true 
+})
+
+local Tabs = { 
+    Kaitun = Window:AddTab("🎲 Kaitun + Attack"), 
+    Settings = Window:AddTab("⚙️ Settings")
+}
+
+-- Aba Kaitun - Lado Esquerdo (Kaitun Original)
+local KaitunGroup = Tabs.Kaitun:AddLeftGroupbox("🎲 Controle do Kaitun")
+
+local ciclarToggle
+ciclarToggle = KaitunGroup:AddToggle("CiclarKaitun", { 
+    Text = "🚀 Iniciar Kaitun v2.0", 
+    Default = false,
+    Callback = function(value)
+        if value then
+            if not kaitunRunning then
+                kaitunRunning = true
+                coroutine.wrap(kaitun_function)(ciclarToggle)
+            end
+        else
+            if kaitunRunning then
+                kaitunRunning = false
+                updateStatus("🛑 Kaitun parado pelo usuário.")
+            end
+        end
+    end
+})
+
+KaitunGroup:AddButton("🛑 Parada de Emergência", function() 
+    if kaitunRunning then 
+        kaitunRunning = false
+        ciclarToggle:SetValue(false) 
+    end 
+end)
+
+KaitunGroup:AddDivider()
+kaitunStatusLabel = KaitunGroup:AddLabel("Status: Aguardando Início")
+
+KaitunGroup:AddDivider()
+artifactLevelLabel = KaitunGroup:AddLabel("Artefato Drop Nível: ...")
+artifactPrestigeLabel = KaitunGroup:AddLabel("Artefato Drop Prestígio: ...")
+
+-- Aba Kaitun - Lado Direito (Auto Attack)
+local AttackGroup = Tabs.Kaitun:AddRightGroupbox("⚔️ Sistema de Auto Attack")
+
+-- Auto Attack Info Labels
+UILabels.TargetEnemy = AttackGroup:AddLabel('🎯 Alvo: Aguardando...')
+UILabels.EnemyDisplayName = AttackGroup:AddLabel('📝 Nome: N/A')
+UILabels.EnemyHealth = AttackGroup:AddLabel('❤️ Vida: N/A')
+UILabels.Distance = AttackGroup:AddLabel('📏 Distância: 0')
+UILabels.EnemiesCount = AttackGroup:AddLabel('👹 Inimigos na área: 0')
+UILabels.PetsCount = AttackGroup:AddLabel('🐾 Pets disponíveis: 0')
+UILabels.SystemStatus = AttackGroup:AddLabel('⚡ Status: Desativado')
+UILabels.TeleportStatus = AttackGroup:AddLabel('🚀 Último TP: Nunca')
+
+AttackGroup:AddDivider()
+
+-- Auto Attack Controls
+AttackGroup:AddToggle('AutoAttackEnabled', {
+    Text = '🎯 Ativar Auto Attack',
+    Default = Config.AutoAttackEnabled,
+    Tooltip = 'Ativa/desativa o sistema de ataque automático',
+    Callback = function(value)
+        Config.AutoAttackEnabled = value
+        if value then
+            if not attackConnection then
+                attackConnection = RunService.Heartbeat:Connect(autoAttackTick)
+                Library:Notify('🎯 Auto Attack ativado!', 3)
+            end
+        else
+            if attackConnection then
+                attackConnection:Disconnect()
+                attackConnection = nil
+                Library:Notify('🎯 Auto Attack desativado!', 2)
+                if positionLockMover then
+                    positionLockMover:Destroy()
+                    positionLockMover = nil
+                end
+            end
+            currentTarget = nil
+        end
+    end
+})
+
+AttackGroup:AddToggle('TeleportToEnemy', {
+    Text = '🚀 Teleportar para Inimigo',
+    Default = Config.TeleportToEnemy,
+    Tooltip = 'Teleporta automaticamente para o inimigo alvo',
+    Callback = function(value)
+        Config.TeleportToEnemy = value
+    end
+})
+
+AttackGroup:AddToggle('AttackAllPets', {
+    Text = '🐾 Usar Todos os Pets',
+    Default = Config.AttackAllPets,
+    Tooltip = 'Use todos os pets disponíveis para atacar',
+    Callback = function(value)
+        Config.AttackAllPets = value
+    end
+})
+
+-- Queue Display
+local QueueGroup = Tabs.Kaitun:AddLeftGroupbox("📋 Fila de Processamento")
+for i = 1, MAX_QUEUE_LABELS do 
+    queueLabels[i] = QueueGroup:AddLabel(string.format("%d. [Vazio]", i)) 
+end
+
+-- Settings Tab
+local AttackSettingsGroup = Tabs.Settings:AddLeftGroupbox("⚔️ Configurações de Attack")
+
+AttackSettingsGroup:AddSlider('AttackRange', {
+    Text = '🎯 Alcance de Ataque',
+    Default = Config.AttackRange,
+    Min = 10,
+    Max = 1000,
+    Rounding = 0,
+    Suffix = ' studs',
+    Callback = function(value)
+        Config.AttackRange = value
+    end
+})
+
+AttackSettingsGroup:AddDropdown('TeleportMode', {
+    Values = {'Above', 'Center', 'Behind', 'Side'},
+    Default = 1,
+    Multi = false,
+    Text = '📍 Modo de Teleporte',
+    Tooltip = 'Selecione a posição de teleporte',
+    Callback = function(value)
+        Config.TeleportMode = value
+    end
+})
+
+AttackSettingsGroup:AddSlider('AttackDelay', {
+    Text = '⏱️ Delay entre Ataques',
+    Default = Config.AttackDelay,
+    Min = 0,
+    Max = 2,
+    Rounding = 2,
+    Suffix = ' seg',
+    Callback = function(value)
+        Config.AttackDelay = value
+    end
+})
+
+AttackSettingsGroup:AddToggle('SmoothTeleport', {
+    Text = '✨ Teleporte Suave',
+    Default = Config.SmoothTeleport,
+    Tooltip = 'Usa animação suave para teleporte',
+    Callback = function(value)
+        Config.SmoothTeleport = value
+    end
+})
+
+local KaitunSettingsGroup = Tabs.Settings:AddRightGroupbox("🎲 Configurações do Kaitun")
+
+KaitunSettingsGroup:AddSlider("BaseDelay", {
+    Text = "Delay após Roll (s)",
+    Default = 0.5,
+    Min = 0.1,
+    Max = 2.0,
+    Rounding = 1,
+}):OnChanged(function(val)
+    detectionConfig.baseDelay = val
+end)
+
+KaitunSettingsGroup:AddSlider("MaxRetries", {
+    Text = "Máx. Tentativas Detecção",
+    Default = 4,
+    Min = 1,
+    Max = 10,
+    Rounding = 0,
+}):OnChanged(function(val)
+    detectionConfig.maxRetries = val
+end)
+
+KaitunSettingsGroup:AddSlider("RetryDelay", {
+    Text = "Delay entre Tentativas (s)",
+    Default = 0.3,
+    Min = 0.1,
+    Max = 1.0,
+    Rounding = 1,
+}):OnChanged(function(val)
+    detectionConfig.retryDelay = val
+end)
+
+KaitunSettingsGroup:AddButton("🧪 Testar Detecção", function()
+    local units = GetUnits()
+    if #units > 0 then
+        local testUnit = units[1]
+        print("🧪 Testando detecção em: " .. testUnit.name)
+        local found, passive = detectDesiredPassive(testUnit.uid, {"SummerGenerosity"})
+        if found then
+            Library:Notify("✅ Teste: " .. passive .. " encontrada!", 3)
+        else
+            Library:Notify("❌ Teste: SummerGenerosity não encontrada", 3)
+        end
+    else
+        Library:Notify("❌ Nenhum pet para testar", 3)
+    end
+end)
+
+-- Theme & Save managers
+local ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/addons/SaveManager.lua"))()
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+SaveManager:IgnoreThemeSettings()
+SaveManager:BuildConfigSection(Tabs.Settings)
+ThemeManager:ApplyToTab(Tabs.Settings)
+
+-- Monitor de artefatos
+task.spawn(function()
+    while task.wait(3) do
+        pcall(function()
+            local data = GameData:GetData()
+            if data and data.Artefacts and data.ArtefactPrestiges then
+                artifactLevelLabel:SetText("Artefato Drop Nível: " .. (data.Artefacts.Drops or 0))
+                artifactPrestigeLabel:SetText("Artefato Drop Prestígio: " .. (data.ArtefactPrestiges.Drops or 0))
+            end
+        end)
+    end
+end)
+
+-- Auto Attack UI Update Loop
+task.spawn(function()
+    while true do
+        task.wait(Config.UpdateFrequency)
+        if Config.ShowEnemyInfo then
+            pcall(updateAutoAttackUI)
+        end
+    end
+end)
+
+-- Cleanup system
+Library:OnUnload(function()
+    if attackConnection then
+        attackConnection:Disconnect()
+    end
+    if positionLockMover then
+        positionLockMover:Destroy()
+    end
+    
+    print('🌟 Sistema integrado descarregado!')
+    Library.Unloaded = true
+end)
+
+-- Inicialização
+Library:Notify("🚀 Luvwas Hub v2.0 - Kaitun + Auto Attack Carregado!", 5)
+if not HasPassive then 
+    Library:Notify("⚠️ HasPassive não encontrado - usando verificação manual robusta", 5) 
+end
+
+print("🔧 Sistema integrado v2.0 inicializado com sucesso!")
+print("📋 Kaitun + Auto Attack prontos para uso!")
