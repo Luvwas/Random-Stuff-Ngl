@@ -1,0 +1,156 @@
+local spamPorItem = 50 -- Quantas vezes tentar comprar cada item
+local tempoDeEspera = 120 -- Tempo em segundos para repetir o processo
+local threadsPorCiclo = 1 -- Threads por ciclo (1 ciclo = 0.01 seg)
+
+local itemsParaComprar = {
+    "Super Celestial Crystal",
+    "Holy Grail",
+    "Celestial Crystal",
+    "Miracle Shard",
+}
+local nomeDoEvento = "Summer 2025"
+
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+    Name = "Luvwas Hub",
+    LoadingTitle = "Loading",
+    LoadingSubtitle = "Beep Beep Bop",
+    ConfigurationSaving = { Enabled = false },
+    KeySystem = false,
+})
+
+local Tab = Window:CreateTab("⚙️ Configuração", nil)
+
+Tab:CreateInput({
+    Name = "Spam por Item",
+    Text = tostring(spamPorItem),
+    PlaceholderText = "Digite a quantidade de tentativas por item",
+    Callback = function(Value)
+        local numero = tonumber(Value)
+        if numero and numero > 0 then
+            spamPorItem = numero
+            Rayfield:Notify({
+                Title = "Spam Atualizado",
+                Content = "Agora " .. numero .. " tentativas por item!",
+                Duration = 2,
+                Image = 4483362458,
+            })
+        else
+            Rayfield:Notify({
+                Title = "Valor Inválido",
+                Content = "Digite um número maior que 0!",
+                Duration = 2,
+                Image = 4483362458,
+            })
+        end
+    end
+})
+
+Tab:CreateInput({
+    Name = "Tempo de Espera (segundos, ex: 0.01)",
+    Text = tostring(tempoDeEspera),
+    PlaceholderText = "Digite o tempo em segundos",
+    Callback = function(Value)
+        local numero = tonumber(Value)
+        if numero and numero > 0 then
+            tempoDeEspera = numero
+            Rayfield:Notify({
+                Title = "Tempo Atualizado",
+                Content = "Aguardando " .. numero .. " segundos entre ciclos!",
+                Duration = 2,
+                Image = 4483362458,
+            })
+        else
+            Rayfield:Notify({
+                Title = "Valor Inválido",
+                Content = "Digite um número maior que 0!",
+                Duration = 2,
+                Image = 4483362458,
+            })
+        end
+    end
+})
+
+Tab:CreateInput({
+    Name = "Threads por Ciclo (ex: 0.01)",
+    Text = tostring(threadsPorCiclo),
+    PlaceholderText = "Digite quantas threads por ciclo",
+    Callback = function(Value)
+        local numero = tonumber(Value)
+        if numero and numero > 0 then
+            threadsPorCiclo = numero
+            Rayfield:Notify({
+                Title = "Threads Atualizado",
+                Content = "Agora usando " .. numero .. " threads por ciclo!",
+                Duration = 2,
+                Image = 4483362458,
+            })
+        else
+            Rayfield:Notify({
+                Title = "Valor Inválido",
+                Content = "Digite um número maior que 0!",
+                Duration = 2,
+                Image = 4483362458,
+            })
+        end
+    end
+})
+
+Tab:CreateLabel("1 ciclo = 0.01 segundos")
+
+local scriptAtivo = false
+
+Tab:CreateToggle({
+    Name = "Iniciar Script",
+    CurrentValue = false,
+    Flag = "ToggleScript",
+    Callback = function(Value)
+        scriptAtivo = Value
+        if Value then
+            Rayfield:Notify({
+                Title = "Script Ativado",
+                Content = "O script está rodando!",
+                Duration = 3,
+                Image = 4483362458,
+            })
+        else
+            Rayfield:Notify({
+                Title = "Script Pausado",
+                Content = "O script foi pausado.",
+                Duration = 3,
+                Image = 4483362458,
+            })
+        end
+    end
+})
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local BuyItemRemote = ReplicatedStorage:WaitForChild("Remote"):WaitForChild("BuyItem")
+
+local function executarCiclo()
+    for _, nomeItem in ipairs(itemsParaComprar) do
+        for i = 1, spamPorItem do
+            for t = 1, threadsPorCiclo do
+                task.spawn(function()
+                    pcall(function()
+                        BuyItemRemote:InvokeServer(nomeItem, nomeDoEvento)
+                    end)
+                end)
+            end
+            task.wait(0.00001)
+        end
+    end
+    task.wait(2)
+end
+
+task.spawn(function()
+    while true do
+        if scriptAtivo then
+            executarCiclo()
+            task.wait(tempoDeEspera)
+        else
+            task.wait(1)
+        end
+    end
+end)
