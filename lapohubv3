@@ -1,0 +1,2215 @@
+-- ============================================================================
+--                              LAPO HUB
+--                           Made By Luvwas
+--                           Version: V3.04
+-- ============================================================================
+
+-- [[ SERVICES ]]
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HttpService = game:GetService("HttpService")
+local RemoteFolder = ReplicatedStorage:WaitForChild("Remote")
+-- Global flag accessible by other tabs to know if webhook logs are enabled
+local WEBHOOK_LOGS_ENABLED = false
+
+-- Provide a safe global SendWebhook stub so other modules/tabs can call it
+-- This will be replaced by the real implementation inside CreateWebhookTab
+SendWebhook = SendWebhook or function(content)
+    -- avoid throwing errors if webhook tab hasn't initialized
+    warn("SendWebhook called but webhook system not initialized yet")
+    return false
+end
+
+-- [[ LOCALIZATION SYSTEM ]]
+    local Localization = {
+    ["en-US"] = {
+        -- Window
+        windowTitle = "Lapo Hub",
+        loadingTitle = "Lapo Hub",
+        loadingSubtitle = "V3.04 by Luvwas",        -- Tabs
+        tabStats = "Stats Viewer",
+        tabInfStuff = "Infinite Items",
+        tabQuests = "Side Quests",
+        tabLimitBreak = "Limit Breaks",
+        tabBanners = "Banners",
+        tabStages = "Stages & Abyss",
+        tabTraits = "Trait Roller",
+        tabSkins = "Skin Shop",
+        tabConfig = "Settings",
+        
+        -- Stats Viewer
+        statsSelectUnit = "Select Unit",
+        statsRefresh = "Refresh Data",
+        statsNoInfo = "No information available for this unit",
+        statsRefreshSuccess = "Data updated successfully",
+        statsRefreshError = "Failed to update data",
+        
+        -- Infinite Items
+        infTitle = "Infinite Item Spawner",
+        infAttempts = "Attempts per Item: 1 (fixed)",
+        infThreads = "Threads per Cycle",
+        infInnerDelay = "Delay between Attempts (seconds)",
+        infCycleDelay = "Delay between Cycles (seconds)",
+        infStart = "Start Script",
+        infStatus = "Status",
+        infInactive = "Inactive",
+        infTrying = "Trying",
+        infSuccess = "Success",
+        infFailed = "Failed to attempt",
+        infActivated = "Script activated",
+        infPaused = "Script paused",
+        
+        -- Quests
+        questsRequirement = "Requirement",
+        questsReward = "Reward",
+        questsStart = "Start Selected Quest",
+        
+        -- Limit Breaks
+        lbSelectUnit = "Select Unit",
+        lbTimes = "Limit Break Times",
+        lbStart = "Start Limit Break",
+        lbCheckPerfect = "Check Perfect Stats",
+        lbHolyGrail = "Holy Grail All Units",
+        lbPerfect = "Perfect Units",
+        lbLimitInfo = "Limit Break",
+        lbProcessing = "Processing",
+        lbComplete = "Complete",
+        lbCheckComplete = "Check complete",
+        lbError = "Failed to limit break unit",
+        
+        -- Banners
+        bannerSelect = "Select Banner",
+        bannerMode = "Spin Mode",
+        bannerRequirement = "Requirement",
+        bannerRoll = "Roll Banner",
+        bannerAuto = "Auto Roll Banner",
+        bannerError = "Failed to roll banner",
+        
+        -- Stages
+        stageSelect = "Select Stage",
+        stageDifficulty = "Difficulty",
+        stageMethod = "Teleport Method",
+        stageGo = "Go to Stage",
+        stageError = "Failed to teleport to stage",
+        abyssNumber = "Abyss Number (1-100000)",
+        abyssGo = "Go to Abyss",
+        methodCreateRoom = "Create Room (With Friends)",
+        methodSolo = "Teleport Solo",
+        
+        -- Traits
+        traitSelect = "Select Your Traits",
+        traitUnit = "Select Your Unit",
+        traitSuper = "Use Super Celestial Crystal",
+        traitStart = "Start Rolling",
+        traitCurrent = "Current Rolled Trait",
+        traitNone = "None",
+        traitFound = "Trait Found!",
+        traitError = "Please select a valid unit",
+        traitAutoBest = "Auto Best Trait All",
+        traitSkipped = "Skipped",
+        traitAlreadyHas = "already has target trait",
+        traitStarting = "Starting Traits",
+        traitNotFound = "Target trait not found for",
+        traitFinished = "Execution finished",
+        
+        -- Skins
+        skinSelect = "Select Your Skin",
+        skinCost = "Skin Cost",
+        skinRarity = "Skin Rarity",
+        skinMaterial = "Skin Material",
+        skinBuy = "Buy Selected Skin",
+        skinNoSelection = "No Skin Selected",
+        skinPleaseSelect = "Please select a skin before buying",
+        skinError = "Failed to purchase skin",
+        
+        -- Settings
+        configTitle = "Configuration",
+        configLanguage = "Language",
+        configTheme = "Theme",
+        configSave = "Save Settings",
+        configSaved = "Settings saved successfully",
+    },
+    ["pt-BR"] = {
+        -- Window
+        windowTitle = "Lapo Hub",
+        loadingTitle = "Lapo Hub",
+        loadingSubtitle = "V3.04 por Luvwas",
+        
+        -- Tabs
+        tabStats = "Visualizar Stats",
+        tabInfStuff = "Items Infinitos",
+        tabQuests = "Missões Secundárias",
+        tabLimitBreak = "Limit Breaks",
+        tabBanners = "Banners",
+        tabStages = "Estágios & Abyss",
+        tabTraits = "Rolador de Traits",
+        tabSkins = "Loja de Skins",
+        tabConfig = "Configurações",
+        
+        -- Stats Viewer
+        statsSelectUnit = "Selecione a Unit",
+        statsRefresh = "Atualizar Dados",
+        statsNoInfo = "Nenhuma informação disponível para esta unit",
+        statsRefreshSuccess = "Dados atualizados com sucesso",
+        statsRefreshError = "Falha ao atualizar dados",
+        
+        -- Infinite Items
+        infTitle = "Gerador de Items Infinitos",
+        infAttempts = "Tentativas por Item: 1 (fixo)",
+        infThreads = "Threads por Ciclo",
+        infInnerDelay = "Delay entre Tentativas (segundos)",
+        infCycleDelay = "Delay entre Ciclos (segundos)",
+        infStart = "Iniciar Script",
+        infStatus = "Status",
+        infInactive = "Inativo",
+        infTrying = "Tentando",
+        infSuccess = "Sucesso",
+        infFailed = "Falha ao tentar",
+        infActivated = "Script ativado",
+        infPaused = "Script pausado",
+        
+        -- Quests
+        questsRequirement = "Requisito",
+        questsReward = "Recompensa",
+        questsStart = "Iniciar Missão Selecionada",
+        
+        -- Limit Breaks
+        lbSelectUnit = "Selecionar Unit",
+        lbTimes = "Vezes de Limit Break",
+        lbStart = "Iniciar Limit Break",
+        lbCheckPerfect = "Verificar Stats Perfeitas",
+        lbHolyGrail = "Holy Grail em Todas Units",
+        lbPerfect = "Units Perfeitas",
+        lbLimitInfo = "Limit Break",
+        lbProcessing = "Processando",
+        lbComplete = "Completo",
+        lbCheckComplete = "Verificação completa",
+        lbError = "Falha ao dar Limit Break na unit",
+        
+        -- Banners
+        bannerSelect = "Selecionar Banner",
+        bannerMode = "Modo de Giro",
+        bannerRequirement = "Requisito",
+        bannerRoll = "Rodar Banner",
+        bannerAuto = "Rodar Banner Automaticamente",
+        bannerError = "Falha ao rodar banner",
+        
+        -- Stages
+        stageSelect = "Selecionar Estágio",
+        stageDifficulty = "Dificuldade",
+        stageMethod = "Método de Teleporte",
+        stageGo = "Ir para Estágio",
+        stageError = "Falha ao teleportar para estágio",
+        abyssNumber = "Número do Abyss (1-100000)",
+        abyssGo = "Ir para Abyss",
+        methodCreateRoom = "Criar Sala (Com Amigos)",
+        methodSolo = "Teleporte Solo",
+        
+        -- Traits
+        traitSelect = "Selecione Suas Traits",
+        traitUnit = "Selecione Sua Unit",
+        traitSuper = "Usar Super Celestial Crystal",
+        traitStart = "Iniciar Rolagem",
+        traitCurrent = "Trait Atual Rolada",
+        traitNone = "Nenhuma",
+        traitFound = "Trait Encontrada!",
+        traitError = "Por favor, selecione uma unit válida",
+        traitAutoBest = "Auto Melhor Trait Todas",
+        traitSkipped = "Pulado",
+        traitAlreadyHas = "já possui trait alvo",
+        traitStarting = "Iniciando Traits",
+        traitNotFound = "Trait alvo não encontrada para",
+        traitFinished = "Execução finalizada",
+        
+        -- Skins
+        skinSelect = "Selecione Sua Skin",
+        skinCost = "Custo da Skin",
+        skinRarity = "Raridade da Skin",
+        skinMaterial = "Material da Skin",
+        skinBuy = "Comprar Skin Selecionada",
+        skinNoSelection = "Nenhuma Skin Selecionada",
+        skinPleaseSelect = "Por favor, selecione uma skin antes de comprar",
+        skinError = "Falha ao comprar skin",
+        
+        -- Settings
+        configTitle = "Configuração",
+        configLanguage = "Idioma",
+        configTheme = "Tema",
+        configSave = "Salvar Configurações",
+        configSaved = "Configurações salvas com sucesso",
+    }
+}
+
+-- [[ CONFIG MANAGER ]]
+local function GetText(key)
+    return Localization["en-US"][key] or key
+end
+
+-- [[ UI INITIALIZATION ]]
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+    Name = GetText("windowTitle"),
+    Icon = 0,
+    LoadingTitle = GetText("loadingTitle"),
+    LoadingSubtitle = GetText("loadingSubtitle"),
+    Theme = "DarkGraphite",
+    DisableRayfieldPrompts = false,
+    DisableBuildWarnings = false,
+    ConfigurationSaving = {
+        Enabled = false
+    },
+    Discord = {
+        Enabled = false,
+        Invite = "noinvitelink",
+        RememberJoins = true
+    },
+    KeySystem = false
+})
+
+-- ============================================================================
+--                             UTILITY FUNCTIONS
+-- ============================================================================
+
+local function SafeInvoke(remote, ...)
+    local args = {...}
+    local success, result = pcall(function()
+        return remote:InvokeServer(table.unpack(args))
+    end)
+    if success then
+        return result
+    end
+    return nil
+end
+
+local function SafeFire(remote, ...)
+    local args = {...}
+    local success = pcall(function()
+        remote:FireServer(table.unpack(args))
+    end)
+    return success
+end
+
+local function IsEmptyTable(t)
+    return type(t) == "table" and next(t) == nil
+end
+
+local function GetReturnData()
+    local remote = RemoteFolder:FindFirstChild("ReturnData") 
+    if remote then
+        local success, data = pcall(function()
+            return SafeInvoke(remote)
+        end)
+        if success and type(data) == "table" then
+            return data
+        end
+    end
+    warn("Lapo's Script: Não foi possível encontrar ou invocar o remote 'ReturnData'. As abas de Stats, Traits e Limit Break podem não funcionar.")
+    return nil
+end
+
+-- ============================================================================
+--                             STATS VIEWER TAB
+-- ============================================================================
+
+local function CreateStatsTab()
+    local StatsTab = Window:CreateTab(GetText("tabStats"), "user")
+    local Section = StatsTab:CreateSection(GetText("statsSelectUnit"))
+    
+    local data = GetReturnData()
+    if not data then
+        StatsTab:CreateLabel("Erro ao carregar dados do jogador.")
+        return
+    end
+
+    local units = data.Units or {}
+    local unitNames = {}
+    
+    for name, _ in pairs(units) do
+        table.insert(unitNames, name)
+    end
+    table.sort(unitNames)
+    
+    local SelectedUnit = unitNames[1]
+    local infoLabels = {}
+    
+    for i = 1, 15 do
+        infoLabels[i] = StatsTab:CreateLabel("")
+    end
+    
+    local function ShowUnitInfo(unit)
+        for i = 1, #infoLabels do
+            infoLabels[i]:Set("")
+        end
+
+        if not (unit and type(unit) == "table") then
+            infoLabels[1]:Set(GetText("statsNoInfo"))
+            return
+        end
+
+        local lines = {}
+
+        -- Helper function for stat conversion
+        local function convertStat(statName, value)
+            local numValue = tonumber(value)
+            if not numValue then return value end
+
+            --[[
+                Based on the user request:
+                - Game data is 150% (which is 1.5 in the code)
+                - ATK/RNG display should be 115
+                - COST display should be 85
+
+                Formula derived:
+                - For ATK/STA(RNG): display = 100 + (data_value - 1) * 30
+                  Example: 100 + (1.5 - 1) * 30 = 100 + 15 = 115
+                - For COST: display = 100 - (data_value - 1) * 30
+                  Example: 100 - (1.5 - 1) * 30 = 100 - 15 = 85
+            ]]
+            local displayValue
+            if statName == "ATK" or statName == "STA" then -- STA is used for RNG in other parts of the script
+                displayValue = 100 + (numValue - 1) * 30
+            elseif statName == "COST" then
+                displayValue = 100 - (numValue - 1) * 30
+            else
+                return value -- No conversion for other stats
+            end
+            return math.floor(displayValue + 0.5) -- Round to nearest integer
+        end
+
+        -- 1. Display key info first
+        table.insert(lines, "Level: " .. tostring(unit.Upgrade or "N/A"))
+        table.insert(lines, "Limit Break: " .. tostring(unit.LimitBreak or unit.Limit or "N/A"))
+
+        local mods = unit.Modifiers or unit.Mods
+        if type(mods) == "table" then
+            local statOrder = {"ATK", "STA", "COST"}
+            for _, statName in ipairs(statOrder) do
+                if mods[statName] then
+                    local convertedValue = convertStat(statName, mods[statName])
+                    table.insert(lines, statName .. ": " .. tostring(convertedValue))
+                end
+            end
+        end
+
+        if unit.Trait then
+            table.insert(lines, "Trait: " .. tostring(unit.Trait))
+        end
+        if unit.Traits and type(unit.Traits) == "table" and #unit.Traits > 0 then
+            table.insert(lines, "Traits: " .. table.concat(unit.Traits, ", "))
+        end
+
+        table.insert(lines, "-------------------")
+
+        -- 2. Display all other raw data, excluding what was already shown
+        local shownKeys = {
+            Upgrade=true, LimitBreak=true, Limit=true, 
+            Modifiers=true, Mods=true, Trait=true, Traits=true
+        }
+        
+        local otherKeys = {}
+        for k in pairs(unit) do
+            if not shownKeys[k] then
+                table.insert(otherKeys, k)
+            end
+        end
+        table.sort(otherKeys)
+
+        for _, k in ipairs(otherKeys) do
+            local v = unit[k]
+            if v ~= nil and v ~= "" and not (type(v) == "table" and IsEmptyTable(v)) then
+                local valueStr
+                if type(v) == "table" then
+                    local ok, enc = pcall(function() return HttpService:JSONEncode(v) end)
+                    valueStr = ok and enc or tostring(v)
+                    if #valueStr > 50 then
+                        valueStr = string.sub(valueStr, 1, 47) .. "..."
+                    end
+                else
+                    valueStr = tostring(v)
+                end
+                table.insert(lines, tostring(k) .. ": " .. valueStr)
+            end
+        end
+
+        -- 3. Set labels
+        if #lines == 0 then
+            infoLabels[1]:Set(GetText("statsNoInfo"))
+        else
+            for i = 1, math.min(#lines, #infoLabels) do
+                infoLabels[i]:Set(lines[i])
+            end
+            
+            if #lines > #infoLabels then
+                infoLabels[#infoLabels]:Set("... +" .. (#lines - #infoLabels) .. " more")
+            end
+        end
+    end
+    
+    local UnitsDropdown = StatsTab:CreateDropdown({
+        Name = GetText("statsSelectUnit"),
+        SectionParent = Section,
+        Options = unitNames,
+        CurrentOption = #unitNames > 0 and {unitNames[1]} or {},
+        MultipleOptions = false,
+        Flag = "UnitSelect",
+        Callback = function(option)
+            local name = type(option) == "table" and option[1] or option
+            if name and units[name] then
+                SelectedUnit = name
+                ShowUnitInfo(units[SelectedUnit])
+            end
+        end
+    })
+    
+    StatsTab:CreateButton({
+        Name = GetText("statsRefresh"),
+        SectionParent = Section,
+        Callback = function()
+            local newData = GetReturnData()
+            if not newData then
+                Rayfield:Notify({
+                    Title = "Error",
+                    Content = GetText("statsRefreshError"),
+                    Duration = 3,
+                    Image = "alert-triangle"
+                })
+                return
+            end
+            
+            units = newData.Units or {}
+            unitNames = {}
+            for name, _ in pairs(units) do
+                table.insert(unitNames, name)
+            end
+            table.sort(unitNames)
+            
+            pcall(function()
+                UnitsDropdown:SetOptions(unitNames)
+            end)
+            
+            if not (SelectedUnit and units[SelectedUnit]) then
+                SelectedUnit = unitNames[1]
+            end
+            
+            if SelectedUnit then
+                 pcall(function()
+                    UnitsDropdown:SetCurrentOption({SelectedUnit})
+                end)
+                ShowUnitInfo(units[SelectedUnit])
+            else
+                ShowUnitInfo(nil)
+            end
+
+            Rayfield:Notify({
+                Title = GetText("tabStats"),
+                Content = GetText("statsRefreshSuccess"),
+                Duration = 2,
+                Image = 4483362458
+            })
+        end
+    })
+    
+    if SelectedUnit and units[SelectedUnit] then
+        ShowUnitInfo(units[SelectedUnit])
+    end
+end
+
+-- ============================================================================
+--                             INFINITE ITEMS TAB
+-- ============================================================================
+
+local function CreateInfiniteTab()
+    local InfTab = Window:CreateTab(GetText("tabInfStuff"), "package")
+    local Section = InfTab:CreateSection(GetText("infTitle"))
+    
+    local spamPorItem = 1
+    local tempoDeEspera = 120
+    local threadsPorCiclo = 1
+    local innerAttemptDelay = 0
+    
+    local itemsParaComprar = {
+        "Super Celestial Crystal",
+        "Holy Grail",
+        "Miracle Shard",
+        "Celestial Crystal",
+    }
+    local nomeDoEvento = "Summer 2025"
+    
+    InfTab:CreateLabel(GetText("infAttempts"))
+    InfTab:CreateLabel("Items: " .. table.concat(itemsParaComprar, ", "))
+    local StatusLabel = InfTab:CreateLabel(GetText("infStatus") .. ": " .. GetText("infInactive"))
+    
+    local attemptCounts = {}
+    local successCounts = {}
+    for _, it in ipairs(itemsParaComprar) do
+        attemptCounts[it] = 0
+        successCounts[it] = 0
+    end
+    
+    local threadOptions = {}
+    for i = 1, 1000 do 
+        table.insert(threadOptions, tostring(i)) 
+    end
+    
+    InfTab:CreateDropdown({
+        Name = GetText("infThreads"),
+        SectionParent = Section,
+        Options = threadOptions,
+        CurrentOption = {tostring(threadsPorCiclo)},
+        MultipleOptions = false,
+        Flag = "InfThreads",
+        Callback = function(option)
+            threadsPorCiclo = tonumber(type(option) == "table" and option[1] or option) or 1
+            Rayfield:Notify({
+                Title = GetText("infThreads"),
+                Content = "Now " .. tostring(threadsPorCiclo) .. " threads per cycle",
+                Duration = 2,
+                Image = 4483362458,
+            })
+        end
+    })
+    
+    InfTab:CreateInput({
+        Name = GetText("infInnerDelay"),
+        SectionParent = Section,
+        CurrentValue = tostring(innerAttemptDelay),
+        PlaceholderText = "0.00001",
+        RemoveTextAfterFocusLost = false,
+        Flag = "InfInnerDelay",
+        Callback = function(Value)
+            local numero = tonumber(Value)
+            if numero and numero > 0 then
+                innerAttemptDelay = numero
+            end
+        end
+    })
+    
+    InfTab:CreateInput({
+        Name = GetText("infCycleDelay"),
+        SectionParent = Section,
+        CurrentValue = tostring(tempoDeEspera),
+        PlaceholderText = "120",
+        RemoveTextAfterFocusLost = false,
+        Flag = "InfCycleDelay",
+        Callback = function(Value)
+            local numero = tonumber(Value)
+            if numero and numero >= 0 then
+                tempoDeEspera = numero
+            end
+        end
+    })
+    
+    local scriptAtivo = false
+    InfTab:CreateToggle({
+        Name = GetText("infStart"),
+        SectionParent = Section,
+        CurrentValue = false,
+        Flag = "ToggleInfScript",
+        Callback = function(Value)
+            scriptAtivo = Value
+            if Value then
+                Rayfield:Notify({
+                    Title = GetText("infStart"),
+                    Content = GetText("infActivated"),
+                    Duration = 3,
+                    Image = 4483362458
+                })
+            else
+                Rayfield:Notify({
+                    Title = GetText("infStart"),
+                    Content = GetText("infPaused"),
+                    Duration = 3,
+                    Image = 4483362458
+                })
+            end
+        end
+    })
+    
+    local BuyItemRemote = RemoteFolder:WaitForChild("BuyItem")
+    
+    local function ExecutarCiclo()
+        for _, nomeItem in ipairs(itemsParaComprar) do
+            for i = 1, spamPorItem do
+                for t = 1, threadsPorCiclo do
+                    attemptCounts[nomeItem] = attemptCounts[nomeItem] + 1
+                    local currentAttempt = attemptCounts[nomeItem]
+                    
+                    task.spawn(function()
+                        local ok = SafeInvoke(BuyItemRemote, nomeItem, nomeDoEvento)
+                        
+                        if ok then
+                            successCounts[nomeItem] = successCounts[nomeItem] + 1
+                        else
+                            local ok2 = SafeInvoke(BuyItemRemote, nomeItem)
+                            if ok2 then
+                                successCounts[nomeItem] = successCounts[nomeItem] + 1
+                            end
+                        end
+                        
+                        if successCounts[nomeItem] % 5 == 0 then
+                            pcall(function()
+                                StatusLabel:Set(GetText("infSuccess") .. ": " .. nomeItem .. " (" .. successCounts[nomeItem] .. ")")
+                            end)
+                        end
+                    end)
+                end
+            end
+        end
+        task.wait(2)
+    end
+    
+    task.spawn(function()
+        while task.wait() do
+            if scriptAtivo then
+                ExecutarCiclo()
+                task.wait(tempoDeEspera)
+            else
+                task.wait(1)
+            end
+        end
+    end)
+end
+
+-- ============================================================================
+--                             SIDE QUESTS TAB
+-- ============================================================================
+
+local function CreateQuestsTab()
+    local Tab = Window:CreateTab(GetText("tabQuests"), "list")
+    local Section = Tab:CreateSection(GetText("tabQuests"))
+    
+    local function GetAllSideQuests()
+        local questList = {}
+        local success, questModule = pcall(function()
+            return require(ReplicatedStorage.Modules.Quests.QuestManager.QuestTypes.Side)
+        end)
+        
+        if success and questModule then
+            for questKey, questData in pairs(questModule) do
+                local title = questData.Title or questKey
+                local rewardStr = ""
+                if questData.Reward then
+                    for rewardName, rewardAmount in pairs(questData.Reward) do
+                        rewardStr = rewardStr .. rewardName .. ": " .. tostring(rewardAmount) .. " "
+                    end
+                end
+                table.insert(questList, {
+                    Name = questKey,
+                    Trigger = questKey,
+                    Title = title,
+                    Reward = rewardStr:gsub("%s$", "")
+                })
+            end
+            table.sort(questList, function(a, b) return a.Name < b.Name end)
+        end
+        return questList
+    end
+    
+    local allSideQuests = GetAllSideQuests()
+    if #allSideQuests == 0 then return end
+    
+    local selectedQuest = allSideQuests[1]
+    local questOptions = {}
+    for _, quest in ipairs(allSideQuests) do
+        table.insert(questOptions, quest.Name)
+    end
+    
+    local QuestTitleLabel = Tab:CreateLabel(GetText("questsRequirement") .. ": " .. (selectedQuest.Title or "-"))
+    local QuestRewardLabel = Tab:CreateLabel(GetText("questsReward") .. ": " .. (selectedQuest.Reward or "-"))
+    
+    Tab:CreateDropdown({
+        Name = GetText("tabQuests"),
+        SectionParent = Section,
+        Options = questOptions,
+        CurrentOption = {questOptions[1]},
+        MultipleOptions = false,
+        Flag = "SelectedSideQuest",
+        Callback = function(option)
+            local selectedName = type(option) == "table" and option[1] or option
+            for _, quest in ipairs(allSideQuests) do
+                if quest.Name == selectedName then
+                    selectedQuest = quest
+                    QuestTitleLabel:Set(GetText("questsRequirement") .. ": " .. (selectedQuest.Title or "-"))
+                    QuestRewardLabel:Set(GetText("questsReward") .. ": " .. (selectedQuest.Reward or "-"))
+                    break
+                end
+            end
+        end
+    })
+    
+    Tab:CreateButton({
+        Name = GetText("questsStart"),
+        SectionParent = Section,
+        Callback = function()
+            if selectedQuest and selectedQuest.Trigger then
+                SafeFire(RemoteFolder:WaitForChild("GetSideQuest"), selectedQuest.Trigger)
+            end
+        end
+    })
+end
+
+-- ============================================================================
+--                             LIMIT BREAKS TAB
+-- ============================================================================
+
+local function CreateLimitBreakTab()
+    local LBTab = Window:CreateTab(GetText("tabLimitBreak"), "zap")
+    local Section = LBTab:CreateSection(GetText("tabLimitBreak"))
+    
+    local units = {
+        "Vending Machine", "Stone Doctor", "Shining Star Idol",
+        "Investigator", "Denis", "Ultimis", "CapsuleGirl",
+        "Shielder", "Peem", "Leader", "Gamble Queen"
+    }
+    
+    if #units == 0 then return end
+    
+    local selectedUnit = units[1]
+    local selectedTimes = 1
+    local timesOptions = {"1", "2", "3", "4", "5"}
+    
+    local SelectionLabel = LBTab:CreateLabel("Selected: " .. selectedUnit .. " x" .. selectedTimes)
+    local LimitInfoLabel = LBTab:CreateLabel(GetText("lbLimitInfo") .. ": -")
+    local PerfectLabel = LBTab:CreateLabel(GetText("lbPerfect") .. ": 0/0")
+    
+    local function UpdateLimitInfo(unitName)
+        local data = GetReturnData()
+        if not data then
+            LimitInfoLabel:Set(GetText("lbLimitInfo") .. ": N/A")
+            return
+        end
+        
+        local unitsTbl = data.Units or {}
+        local u = unitsTbl[unitName]
+        
+        if not u or type(u) ~= "table" then
+            LimitInfoLabel:Set(GetText("lbLimitInfo") .. ": N/A for " .. unitName)
+            return
+        end
+        
+        local lbKeys = {"LimitBreak", "Limit", "LimitLevel", "LimitBreakLevel", "BreakLevel", "LimitBreaks", "LB"}
+        local dateKeys = {"LimitBreakDate", "LastLimitBreak", "Date", "LimitDate", "BreakDate"}
+        local lbVal, dateVal = nil, nil
+        
+        for _, k in ipairs(lbKeys) do
+            if u[k] ~= nil then
+                lbVal = u[k]
+                break
+            end
+        end
+        for _, k in ipairs(dateKeys) do
+            if u[k] ~= nil then
+                dateVal = u[k]
+                break
+            end
+        end
+        
+        if lbVal ~= nil then
+            local s = GetText("lbLimitInfo") .. ": " .. tostring(lbVal)
+            if dateVal ~= nil then
+                s = s .. " (" .. tostring(dateVal) .. ")"
+            end
+            LimitInfoLabel:Set(s)
+        else
+            LimitInfoLabel:Set(GetText("lbLimitInfo") .. ": -")
+        end
+    end
+    
+    LBTab:CreateDropdown({
+        Name = GetText("lbSelectUnit"),
+        SectionParent = Section,
+        Options = units,
+        CurrentOption = {units[1]},
+        MultipleOptions = false,
+        Flag = "LimitBreakUnit",
+        Callback = function(option)
+            selectedUnit = type(option) == "table" and option[1] or option
+            SelectionLabel:Set("Selected: " .. selectedUnit .. " x" .. selectedTimes)
+            UpdateLimitInfo(selectedUnit)
+        end
+    })
+    
+    LBTab:CreateDropdown({
+        Name = GetText("lbTimes"),
+        SectionParent = Section,
+        Options = timesOptions,
+        CurrentOption = {timesOptions[1]},
+        MultipleOptions = false,
+        Flag = "LimitBreakTimes",
+        Callback = function(option)
+            selectedTimes = tonumber(type(option) == "table" and option[1] or option) or 1
+            SelectionLabel:Set("Selected: " .. selectedUnit .. " x" .. selectedTimes)
+        end
+    })
+    
+    LBTab:CreateButton({
+        Name = GetText("lbStart"),
+        SectionParent = Section,
+        Callback = function()
+            for i = 1, selectedTimes do
+                local success = SafeInvoke(RemoteFolder:WaitForChild("LimitBreak"), selectedUnit)
+                if not success then
+                    Rayfield:Notify({
+                        Title = "Error",
+                        Content = GetText("lbError"),
+                        Duration = 4,
+                        Image = "alert-triangle"
+                    })
+                    break
+                end
+                task.wait(0.2)
+            end
+        end
+    })
+    
+    local function AlmostEqual(a, b)
+        if type(a) ~= "number" or type(b) ~= "number" then return false end
+        return math.abs(a - b) < 1e-6
+    end
+    
+    LBTab:CreateButton({
+        Name = GetText("lbCheckPerfect"),
+        SectionParent = Section,
+        Callback = function()
+            local data = GetReturnData()
+            if not data then
+                Rayfield:Notify({
+                    Title = "Error",
+                    Content = GetText("statsRefreshError"),
+                    Duration = 4,
+                    Image = "alert-triangle"
+                })
+                return
+            end
+            
+            local inv = data.Units or {}
+            local perfectCount = 0
+            local totalCount = 0
+            
+            for unitName, u in pairs(inv) do
+                if not table.find(units, unitName) then
+                    totalCount = totalCount + 1
+                    local isPerfect = true
+                    
+                    if not AlmostEqual(tonumber(u.Upgrade) or 0, 100) then isPerfect = false end
+                    if not AlmostEqual(tonumber(u.LimitBreak) or 0, 5) then isPerfect = false end
+                    
+                    local mods = u.Modifiers or u.Mods or {}
+                    local atk = tonumber(mods.ATK) or 0
+                    local sta = tonumber(mods.STA) or 0
+                    local cost = tonumber(mods.COST) or 0
+                    
+                    if not AlmostEqual(atk, 1.5) then isPerfect = false end
+                    if not AlmostEqual(sta, 1.5) then isPerfect = false end
+                    if not AlmostEqual(cost, 1.5) then isPerfect = false end
+                    
+                    if isPerfect then perfectCount = perfectCount + 1 end
+                end
+            end
+            
+            PerfectLabel:Set(GetText("lbPerfect") .. ": " .. perfectCount .. "/" .. totalCount)
+            Rayfield:Notify({
+                Title = GetText("lbCheckPerfect"),
+                Content = GetText("lbCheckComplete") .. ": " .. perfectCount .. "/" .. totalCount,
+                Duration = 3,
+                Image = 4483362458
+            })
+        end
+    })
+    
+    LBTab:CreateButton({
+        Name = GetText("lbHolyGrail"),
+        SectionParent = Section,
+        Callback = function()
+            Rayfield:Notify({
+                Title = GetText("lbHolyGrail"),
+                Content = GetText("lbProcessing") .. "...",
+                Duration = 3,
+                Image = 4483362458
+            })
+            
+            local data = GetReturnData()
+            if not data then
+                Rayfield:Notify({
+                    Title = "Error",
+                    Content = GetText("statsRefreshError"),
+                    Duration = 4,
+                    Image = "alert-triangle"
+                })
+                return
+            end
+            
+            local inv = data.Units or {}
+            local processed = 0
+            local total = 0
+            
+            for unitName, _ in pairs(inv) do
+                if not table.find(units, unitName) then
+                    total = total + 1
+                end
+            end
+            
+            task.spawn(function()
+                for unitName, _ in pairs(inv) do
+                    if not table.find(units, unitName) then
+                        processed = processed + 1
+                        Rayfield:Notify({
+                            Title = GetText("lbHolyGrail"),
+                            Content = GetText("lbProcessing") .. " " .. unitName .. " (" .. processed .. "/" .. total .. ")",
+                            Duration = 1,
+                            Image = 4483362458
+                        })
+                        SafeInvoke(RemoteFolder:WaitForChild("HolyGrail"), unitName)
+                        task.wait(0.15)
+                    end
+                end
+                
+                Rayfield:Notify({
+                    Title = GetText("lbHolyGrail"),
+                    Content = GetText("lbComplete"),
+                    Duration = 3,
+                    Image = 4483362458
+                })
+            end)
+        end
+    })
+end
+
+-- ============================================================================
+--                                 BANNERS TAB
+-- ============================================================================
+
+local function CreateBannersTab()
+    local BannersTab = Window:CreateTab(GetText("tabBanners"), "gift")
+    -- Debug: notify when banner tab creation starts
+    pcall(function()
+        Rayfield:Notify({ Title = "Init", Content = "CreateBannersTab start", Duration = 1, Image = "info" })
+    end)
+    
+    local function CreateBannerSection(sectionName, bannerList, isEvent)
+        local Section = BannersTab:CreateSection(sectionName)
+        if #bannerList == 0 then
+            -- create a simple label on the tab (string argument) to avoid API mismatch
+            pcall(function()
+                BannersTab:CreateLabel("No banners found")
+            end)
+            return
+        end
+        
+        local bannerNames = {}
+        for _, b in ipairs(bannerList) do
+            table.insert(bannerNames, b.Name)
+        end
+        
+        local selectedBanner = bannerList[1]
+        local spinAmount = 1
+        local rolling = false
+        
+    local RequirementLabel = BannersTab:CreateLabel(GetText("bannerRequirement") .. ": " .. tostring(selectedBanner.Requirement or "-"))
+        
+        -- [CORREÇÃO] Criar o dropdown na Aba (BannersTab) e associar à Seção (Section)
+        BannersTab:CreateDropdown({
+            Name = GetText("bannerSelect"),
+            SectionParent = Section,
+            Options = bannerNames,
+            CurrentOption = {bannerNames[1]},
+            MultipleOptions = false,
+            Flag = "BannerSelect" .. (isEvent and "Event" or "Normal"),
+            Callback = function(option)
+                local selectedName = type(option) == "table" and option[1] or option
+                for _, b in ipairs(bannerList) do
+                    if b.Name == selectedName then
+                        selectedBanner = b
+                        RequirementLabel:Set(GetText("bannerRequirement") .. ": " .. b.Requirement)
+                        break
+                    end
+                end
+            end
+        })
+        
+        -- [CORREÇÃO] Criar o dropdown na Aba (BannersTab) e associar à Seção (Section)
+        BannersTab:CreateDropdown({
+            Name = GetText("bannerMode"),
+            SectionParent = Section,
+            Options = {"1x", "10x"},
+            CurrentOption = {"1x"},
+            MultipleOptions = false,
+            Flag = "SpinMode" .. (isEvent and "Event" or "Normal"),
+            Callback = function(option)
+                spinAmount = ((type(option) == "table" and option[1] or option) == "10x") and 2 or 1
+            end
+        })
+        
+        local function RollOnce()
+            local success
+            if selectedBanner.Type == "Gacha" then
+                success = SafeInvoke(
+                    RemoteFolder:WaitForChild("Gacha"),
+                    spinAmount == 1 and 1 or 10,
+                    selectedBanner.Triggers[spinAmount]
+                )
+            elseif selectedBanner.Type == "BuyItem" then
+                success = SafeInvoke(
+                    RemoteFolder:WaitForChild("BuyItem"),
+                    selectedBanner.Triggers[spinAmount],
+                    selectedBanner.Vendor
+                )
+            end
+            
+            if not success then
+                Rayfield:Notify({
+                    Title = "Error",
+                    Content = GetText("bannerError"),
+                    Duration = 4,
+                    Image = "alert-triangle"
+                })
+            end
+        end
+        
+        -- [CORREÇÃO] Criar o botão na Aba (BannersTab) e associar à Seção (Section)
+        BannersTab:CreateButton({
+            Name = GetText("bannerRoll"),
+            SectionParent = Section,
+            Callback = RollOnce
+        })
+        
+        -- [CORREÇÃO] Criar o toggle na Aba (BannersTab) e associar à Seção (Section)
+        BannersTab:CreateToggle({
+            Name = GetText("bannerAuto"),
+            SectionParent = Section,
+            CurrentValue = false,
+            Flag = "AutoBanner" .. (isEvent and "Event" or "Normal"),
+            Callback = function(value)
+                rolling = value
+                if not rolling then return end
+                task.spawn(function()
+                    while rolling do
+                        RollOnce()
+                        task.wait(2)
+                    end
+                end)
+            end
+        })
+    end
+    
+    local bannerList = {
+        {Name = "Beginning Adventurers", Type = "Gacha", Triggers = {[1] = "Beginning Adventurers", [2] = "Beginning Adventurers"}, Requirement = "Requires Puzzle"},
+        {Name = "Beyond Imagination", Type = "Gacha", Triggers = {[1] = "Beyond Imagination", [2] = "Beyond Imagination"}, Requirement = "Requires Puzzle"},
+        {Name = "Demon Hunt", Type = "Gacha", Triggers = {[1] = "Demon Hunt", [2] = "Demon Hunt"}, Requirement = "Requires Puzzle"},
+        {Name = "Rise Of Heros", Type = "Gacha", Triggers = {[1] = "Rise Of Heros", [2] = "Rise Of Heros"}, Requirement = "Requires Puzzle"},
+        {Name = "World Legacy", Type = "Gacha", Triggers = {[1] = "World Legacy", [2] = "World Legacy"}, Requirement = "Requires Puzzle"},
+        {Name = "Ultimate Warrior", Type = "Gacha", Triggers = {[1] = "Ultimate Warrior", [2] = "Ultimate Warrior"}, Requirement = "Requires Puzzle"},
+        {Name = "Soul Banner With Puzzles", Type = "Gacha", Triggers = {[1] = "Soul Banner With Puzzles", [2] = "Soul Banner With Puzzles"}, Requirement = "Requires Puzzle"},
+        {Name = "Stardust Crusader", Type = "Gacha", Triggers = {[1] = "Stardust Crusader", [2] = "Stardust Crusader"}, Requirement = "Requires Puzzle"},
+    }
+    
+    local eventBannerList = {
+        {Name = "Dream Banner", Type = "Gacha", Triggers = {[1] = "Dream Banner", [2] = "Dream Banner"}, Requirement = "Puzzles"},
+        {Name = "Halloween Event", Type = "BuyItem", Triggers = {[1] = "HalloweenGacha", [2] = "Halloween10Gacha"}, Vendor = "Peem", Requirement = "Requires Candy"},
+        {Name = "Summer Event", Type = "BuyItem", Triggers = {[1] = "SummerGacha", [2] = "Summer10Gacha"}, Vendor = "Peem", Requirement = "Requires Primal Sea"},
+        {Name = "Christmas Event", Type = "Gacha", Triggers = {[1] = "Christmas Event", [2] = "Christmas Event"}, Requirement = "Puzzles"},
+        {Name = "Valentine Event", Type = "Gacha", Triggers = {[1] = "Valentine Event", [2] = "Valentine Event"}, Requirement = "Puzzles"},
+        {Name = "Magical Girl Event", Type = "BuyItem", Triggers = {[1] = "Summon Unit", [2] = "Summon Unit"}, Vendor = "Magical Girl", Requirement = "Requires Magical Token"},
+        {Name = "April Fool's Event", Type = "Gacha", Triggers = {[1] = "AprilFool", [2] = "AprilFool"}, Requirement = "Requires Cursed Doll"},
+        {Name = "New Years Banner", Type = "Gacha", Triggers = {[1] = "New Year Banner", [2] = "New Year Banner"}, Requirement = "Puzzle"},
+        {Name = "Anniversary Banner", Type = "Gacha", Triggers = {[1] = "Aniversary Banner", [2] = "Aniversary Banner"}, Requirement = "Puzzle"},
+        {Name = "Legendary Festival", Type = "Gacha", Triggers = {[1] = "Legend Festival", [2] = "Legend Festival"}, Requirement = "Puzzle"},
+    }
+    
+    CreateBannerSection("Standard Banners", bannerList, false)
+    CreateBannerSection("Event Banners", eventBannerList, true)
+
+    -- Debug: notify when banner tab creation finished
+    pcall(function()
+        Rayfield:Notify({ Title = "Init", Content = "CreateBannersTab end", Duration = 1, Image = "check-circle" })
+    end)
+end
+
+-- ============================================================================
+--                             STAGES & ABYSS TAB
+-- ============================================================================
+
+local function CreateStagesTab()
+    local StagesTab = Window:CreateTab(GetText("tabStages"), "map")
+    local StageSection = StagesTab:CreateSection(GetText("tabStages"))
+    
+    local stages = {
+        {DisplayName = "Dragon Kingdom", Trigger = "Dragon Kingdom"},
+        {DisplayName = "Crossover City", Trigger = "Crossover City"},
+        {DisplayName = "Valentine Kingdom", Trigger = "Valentine Kingdom"},
+        {DisplayName = "Shadow Realm II", Trigger = "Shadow Realm II"},
+        {DisplayName = "Phantom Parade", Trigger = "Phantom Parade"},
+        {DisplayName = "Fishman Island", Trigger = "Fishman Island"},
+        {DisplayName = "Christmas Mansion", Trigger = "Christmas Mansion"},
+        {DisplayName = "Halloween Town", Trigger = "Halloween Town"},
+        {DisplayName = "Execution Base", Trigger = "Execution Base"},
+        {DisplayName = "Kujaku House", Trigger = "Kujaku House"},
+        {DisplayName = "Pinky Island", Trigger = "Pinky Island"},
+        {DisplayName = "Forbidden Graveyard", Trigger = "Forbidden Graveyard"},
+        {DisplayName = "Dessert Witch", Trigger = "Dessert Witch"},
+    }
+    
+    local difficulties = {"Normal", "Hard", "Insane", "Nightmare", "Master"}
+    local methodOptions = {GetText("methodCreateRoom"), GetText("methodSolo")}
+    
+    local selectedStageTrigger = stages[1].Trigger
+    local selectedDifficulty = difficulties[1]
+    local selectedMethod = methodOptions[1]
+    
+    local stageNames = {}
+    for _, stage in ipairs(stages) do
+        table.insert(stageNames, stage.DisplayName)
+    end
+    
+    StagesTab:CreateDropdown({
+        Name = GetText("stageSelect"),
+        SectionParent = StageSection,
+        Options = stageNames,
+        CurrentOption = {stageNames[1]},
+        MultipleOptions = false,
+        Flag = "StageSelect",
+        Callback = function(option)
+            local optName = type(option) == "table" and option[1] or option
+            for _, stage in ipairs(stages) do
+                if stage.DisplayName == optName then
+                    selectedStageTrigger = stage.Trigger
+                    break
+                end
+            end
+        end
+    })
+    
+    StagesTab:CreateDropdown({
+        Name = GetText("stageDifficulty"),
+        SectionParent = StageSection,
+        Options = difficulties,
+        CurrentOption = {difficulties[1]},
+        MultipleOptions = false,
+        Flag = "DifficultySelect",
+        Callback = function(option)
+            selectedDifficulty = type(option) == "table" and option[1] or option
+        end
+    })
+    
+    StagesTab:CreateDropdown({
+        Name = GetText("stageMethod"),
+        SectionParent = StageSection,
+        Options = methodOptions,
+        CurrentOption = {methodOptions[1]},
+        MultipleOptions = false,
+        Flag = "StageMethod",
+        Callback = function(option)
+            selectedMethod = type(option) == "table" and option[1] or option
+        end
+    })
+    
+    StagesTab:CreateButton({
+        Name = GetText("stageGo"),
+        SectionParent = StageSection,
+        Callback = function()
+            local success
+            if selectedMethod == methodOptions[1] then
+                local args = {
+                    ["StageSelect"] = selectedStageTrigger,
+                    ["Image"] = "rbxassetid://9617217504",
+                    ["FriendOnly"] = false,
+                    ["Difficult"] = selectedDifficulty
+                }
+                success = SafeFire(RemoteFolder:WaitForChild("CreateRoom"), args)
+            else
+                success = SafeFire(RemoteFolder.TeleportToStage, selectedStageTrigger)
+            end
+            
+            if not success then
+                Rayfield:Notify({
+                    Title = "Error",
+                    Content = GetText("stageError"),
+                    Duration = 4,
+                    Image = "alert-triangle"
+                })
+            end
+        end
+    })
+    
+    local AbyssSection = StagesTab:CreateSection("Abyss")
+    local selectedAbyssNumber = 1
+    
+    local AbyssInput = StagesTab:CreateInput({
+        Name = GetText("abyssNumber"),
+        SectionParent = AbyssSection,
+        CurrentValue = "1",
+        PlaceholderText = "1-100000",
+        RemoveTextAfterFocusLost = false,
+        Flag = "AbyssNumberInput",
+        Callback = function(text)
+            local n = tonumber(text)
+            if n and n >= 1 and n <= 100000 and math.floor(n) == n then
+                selectedAbyssNumber = n
+            else
+                AbyssInput:Set(tostring(selectedAbyssNumber))
+            end
+        end
+    })
+    
+    StagesTab:CreateButton({
+        Name = GetText("abyssGo"),
+        SectionParent = AbyssSection,
+        Callback = function()
+            local abyssStr = "Abyss_" .. tostring(selectedAbyssNumber)
+            local success = SafeFire(RemoteFolder.TeleportToStage, abyssStr)
+            if not success then
+                Rayfield:Notify({
+                    Title = "Error",
+                    Content = GetText("stageError"),
+                    Duration = 4,
+                    Image = "alert-triangle"
+                })
+            end
+        end
+    })
+end
+
+-- ============================================================================
+--                                 TRAITS TAB
+-- ============================================================================
+
+local function CreateTraitsTab()
+    local TraitsTab = Window:CreateTab(GetText("tabTraits"), "refresh-ccw")
+    local Section = TraitsTab:CreateSection(GetText("tabTraits"))
+    
+    local useSuperCrystal = false
+    local CurrentTraitLabel = TraitsTab:CreateLabel(GetText("traitCurrent") .. ": " .. GetText("traitNone"))
+    
+    local allTraits = {
+        "Strength", "Swiftness", "Precision", "Entrepreneur", "Deadeye",
+        "Berserk", "Golden", "Giant Slayer", "Elementalist", "Momentum",
+        "Bounty Hunt", "Dark Summoner", "Streamliner", "The Honored One",
+        "Arcanist", "The Fallen One", "Survivor", "Divine Treasure"
+    }
+    
+    local selectedTraits = {"Strength"}
+    
+    TraitsTab:CreateDropdown({
+        Name = GetText("traitSelect"),
+        SectionParent = Section,
+        Options = allTraits,
+        CurrentOption = {"Strength"},
+        MultipleOptions = true,
+        Flag = "TraitsDropdown",
+        Callback = function(Options)
+            selectedTraits = Options
+        end
+    })
+    
+    local inventoryUnits = {}
+    local data = GetReturnData()
+    if data and data.Units then
+        for unitName, _ in pairs(data.Units) do
+            table.insert(inventoryUnits, unitName)
+        end
+        table.sort(inventoryUnits)
+    end
+    
+    local selectedUnitForTrait = #inventoryUnits > 0 and inventoryUnits[1] or ""
+    
+    TraitsTab:CreateDropdown({
+        Name = GetText("traitUnit"),
+        SectionParent = Section,
+        Options = #inventoryUnits > 0 and inventoryUnits or {"No units found"},
+        CurrentOption = #inventoryUnits > 0 and {selectedUnitForTrait} or {},
+        MultipleOptions = false,
+        Flag = "TraitsUnitDropdown",
+        Callback = function(option)
+            selectedUnitForTrait = type(option) == "table" and option[1] or option
+        end
+    })
+    
+    TraitsTab:CreateToggle({
+        Name = GetText("traitSuper"),
+        SectionParent = Section,
+        CurrentValue = false,
+        Flag = "TraitsSuperToggle",
+        Callback = function(Value)
+            useSuperCrystal = Value
+        end
+    })
+    
+    local isRollingTraits = false
+    local traitsToggle
+    traitsToggle = TraitsTab:CreateToggle({
+        Name = GetText("traitStart"),
+        SectionParent = Section,
+        CurrentValue = false,
+        Flag = "TraitsToggle",
+        Callback = function(Value)
+            isRollingTraits = Value
+            if not isRollingTraits then
+                CurrentTraitLabel:Set(GetText("traitCurrent") .. ": " .. GetText("traitNone"))
+                return
+            end
+            
+            local unitName = selectedUnitForTrait
+            if not unitName or unitName == "" or unitName == "No units found" then
+                Rayfield:Notify({
+                    Title = "Error",
+                    Content = GetText("traitError"),
+                    Duration = 4,
+                    Image = "alert-triangle"
+                })
+                isRollingTraits = false
+                pcall(function() traitsToggle:Set(false) end)
+                return
+            end
+            
+            task.spawn(function()
+                while isRollingTraits do
+                    local traitMethod = useSuperCrystal and "SuperRandom" or "Random"
+                    local success, randomTraitResult = pcall(SafeInvoke,
+                        RemoteFolder:WaitForChild("traitRemote"),
+                        traitMethod,
+                        unitName
+                    )
+                    
+                    if not success or not randomTraitResult then
+                        CurrentTraitLabel:Set("Error rolling trait")
+                        isRollingTraits = false
+                        pcall(function() traitsToggle:Set(false) end)
+                        break
+                    end
+                    
+                    local rolledTrait = type(randomTraitResult) == "table" and randomTraitResult[1] or randomTraitResult
+                    
+                    if type(rolledTrait) == "string" then
+                        CurrentTraitLabel:Set(GetText("traitCurrent") .. ": " .. rolledTrait)
+                        if table.find(selectedTraits, rolledTrait) then
+                            Rayfield:Notify({
+                                Title = GetText("traitFound"),
+                                Content = "'" .. rolledTrait .. "' found!",
+                                Duration = 5,
+                                Image = "check-circle"
+                            })
+                            isRollingTraits = false
+                            pcall(function() traitsToggle:Set(false) end)
+                            break
+                        end
+                    else
+                        CurrentTraitLabel:Set("Error: Unexpected result")
+                        isRollingTraits = false
+                        pcall(function() traitsToggle:Set(false) end)
+                        break
+                    end
+                    task.wait(1)
+                end
+            end)
+        end
+    })
+    
+    local isAutoBestAll = false
+    local autoBestToggle
+    autoBestToggle = TraitsTab:CreateToggle({
+        Name = GetText("traitAutoBest"),
+        SectionParent = Section,
+        CurrentValue = false,
+        Flag = "TraitsAutoBestAll",
+        Callback = function(Value)
+            isAutoBestAll = Value
+            if not isAutoBestAll then
+                CurrentTraitLabel:Set(GetText("traitCurrent") .. ": " .. GetText("traitNone"))
+                return
+            end
+            
+            local targetTraits = {
+                ["The Honored One"] = true,
+                ["The Fallen One"] = true,
+                ["Assassin"] = true
+                ["Divine Treasure"] = true,
+            }
+            
+            local ignoreUnits = {
+                "Vending Machine", "Stone Doctor", "Shining Star Idol",
+                "Investigator", "Denis", "Ultimis", "CapsuleGirl",
+                "Shielder", "Peem", "Leader", "Gamble Queen"
+            }
+            
+            task.spawn(function()
+                local data = GetReturnData()
+                if not data then
+                    Rayfield:Notify({
+                        Title = "Error",
+                        Content = GetText("statsRefreshError"),
+                        Duration = 4,
+                        Image = "alert-triangle"
+                    })
+                    isAutoBestAll = false
+                    pcall(function() autoBestToggle:Set(false) end)
+                    return
+                end
+                
+                local allUnits = data.Units or {}
+                local unitList = {}
+                for uname, _ in pairs(allUnits) do
+                    if not table.find(ignoreUnits, uname) then
+                        table.insert(unitList, uname)
+                    end
+                end
+                table.sort(unitList)
+                
+                local function UnitHasTargetTrait(u)
+                    if not u then return false end
+                    local checks = {}
+                    if type(u.Trait) == "string" then table.insert(checks, u.Trait) end
+                    if type(u.Traits) == "table" then
+                        for _, t in ipairs(u.Traits) do table.insert(checks, t) end
+                    end
+                    if type(u.TraitsList) == "table" then
+                        for _, t in ipairs(u.TraitsList) do table.insert(checks, t) end
+                    end
+                    for _, v in ipairs(checks) do
+                        if type(v) == "string" and targetTraits[v] then return true end
+                    end
+                    return false
+                end
+                
+                for _, unitName in ipairs(unitList) do
+                    if not isAutoBestAll then break end
+                    
+                    local fresh = GetReturnData()
+                    if not fresh then break end
+                    
+                    local freshUnits = fresh.Units or {}
+                    local unitData = freshUnits[unitName]
+                    
+                    if UnitHasTargetTrait(unitData) then
+                        Rayfield:Notify({
+                            Title = GetText("traitSkipped"),
+                            Content = unitName .. " " .. GetText("traitAlreadyHas"),
+                            Duration = 1.5,
+                            Image = 4483362458
+                        })
+                        -- send webhook per-unit even if skipped
+                        if WEBHOOK_LOGS_ENABLED then
+                            local total = #unitList
+                            local idx = nil
+                            for i, v in ipairs(unitList) do if v == unitName then idx = i break end end
+                            local currentTraits = {}
+                            if type(unitData) == "table" then
+                                if type(unitData.Trait) == "string" then table.insert(currentTraits, unitData.Trait) end
+                                if type(unitData.Traits) == "table" then for _, t in ipairs(unitData.Traits) do table.insert(currentTraits, t) end end
+                                if type(unitData.TraitsList) == "table" then for _, t in ipairs(unitData.TraitsList) do table.insert(currentTraits, t) end end
+                            end
+                            local traitStr = (#currentTraits > 0) and table.concat(currentTraits, ", ") or "None"
+                            local embed = {
+                                title = "Auto Best Trait All - Unit Processed",
+                                description = "Unit already has trait / skipped",
+                                color = 0xF1C40F,
+                                fields = {
+                                    { name = "Queue", value = tostring((idx or 0) .. "/" .. tostring(total)), inline = true },
+                                    { name = "Unit", value = tostring(unitName), inline = true },
+                                    { name = "Current Traits", value = tostring(traitStr), inline = false }
+                                },
+                                footer = { text = "Lapo Hub Logs" },
+                                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+                            }
+                            SendWebhook({ embeds = { embed } })
+                        end
+                        task.wait(0.2)
+                    else
+                        Rayfield:Notify({
+                            Title = GetText("traitStarting"),
+                            Content = GetText("lbProcessing") .. " " .. unitName,
+                            Duration = 2,
+                            Image = 4483362458
+                        })
+                        
+                        local found = false
+                        local maxAttemptsPerUnit = 5000
+                        for attempt = 1, maxAttemptsPerUnit do
+                            if not isAutoBestAll then break end
+                            
+                            local traitMethod = useSuperCrystal and "SuperRandom" or "Random"
+                            local ok, randomTraitResult = pcall(SafeInvoke,
+                                RemoteFolder:WaitForChild("traitRemote"),
+                                traitMethod,
+                                unitName
+                            )
+                            
+                                if ok and randomTraitResult then
+                                    local rolledTrait = type(randomTraitResult) == "table" and randomTraitResult[1] or randomTraitResult
+                                    if type(rolledTrait) == "string" then
+                                        CurrentTraitLabel:Set(unitName .. " -> " .. rolledTrait .. " (" .. attempt .. ")")
+                                        if targetTraits[rolledTrait] then
+                                            found = true
+                                            Rayfield:Notify({
+                                                Title = GetText("traitFound"),
+                                                Content = unitName .. " -> " .. rolledTrait,
+                                                Duration = 3,
+                                                Image = "check-circle"
+                                            })
+
+                                            -- send webhook log if enabled
+                                            if WEBHOOK_LOGS_ENABLED then
+                                                local fresh2 = GetReturnData() or {}
+                                                local units2 = fresh2.Units or {}
+                                                local total = #unitList
+                                                -- find index in sorted unitList
+                                                local idx = nil
+                                                for i, v in ipairs(unitList) do if v == unitName then idx = i break end end
+
+                                                local currentTrait = rolledTrait
+                                                local embed = {
+                                                    title = "Auto Best Trait All",
+                                                    description = "A target trait was obtained",
+                                                    color = 0x58D68D,
+                                                    fields = {
+                                                        { name = "Queue", value = tostring((idx or 0) .. "/" .. tostring(total)), inline = true },
+                                                        { name = "Unit (current)", value = tostring(unitName), inline = true },
+                                                        { name = "Current Trait", value = tostring(currentTrait), inline = false }
+                                                    },
+                                                    footer = { text = "Lapo Hub Logs" },
+                                                    timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+                                                }
+                                                SendWebhook({ embeds = { embed } })
+                                            end
+
+                                            break
+                                        end
+                                    end
+                                end
+                            task.wait(0.55)
+                        end
+                        
+                        if not found then
+                            Rayfield:Notify({
+                                Title = GetText("traitNotFound"),
+                                Content = unitName,
+                                Duration = 4,
+                                Image = "alert-triangle"
+                            })
+                        end
+                        task.wait(0.3)
+                    end
+                end
+                
+                Rayfield:Notify({
+                    Title = GetText("traitAutoBest"),
+                    Content = GetText("traitFinished"),
+                    Duration = 3,
+                    Image = 4483362458
+                })
+                isAutoBestAll = false
+                pcall(function() autoBestToggle:Set(false) end)
+                CurrentTraitLabel:Set(GetText("traitCurrent") .. ": " .. GetText("traitNone"))
+            end)
+        end
+    })
+end
+
+
+-- ============================================================================
+--                                 SKINS TAB
+-- ============================================================================
+
+local function CreateSkinsTab()
+    local SkinsTab = Window:CreateTab(GetText("tabSkins"), "shirt")
+    local Section = SkinsTab:CreateSection(GetText("tabSkins"))
+    
+    local function GetAllSkinsData()
+        local SkinData = {}
+        local success, ShopData = pcall(function()
+            return require(ReplicatedStorage.Modules.System.ShopData)
+        end)
+        
+        if not success then
+            return {}
+        end
+        
+        local ShopSkins = ShopData.GetSkinShopData and ShopData.GetSkinShopData() or {}
+        local rarityByCost = {
+            {min = 3000, rarity = "Secret Rare"},
+            {min = 1200, rarity = "Legend Rare"},
+            {min = 0, rarity = "Ultra Rare"},
+        }
+        
+        for _, skins in pairs(ShopSkins) do
+            for skinFullName, skinInfo in pairs(skins) do
+                if skinInfo.Currency and skinInfo.Currency[1] then
+                    local cost = skinInfo.Currency[1][2] or 1200
+                    local material = skinInfo.Currency[1][1] or "Gem"
+                    local foundRarity = "Ultra Rare"
+                    for _, r in ipairs(rarityByCost) do
+                        if cost >= r.min then
+                            foundRarity = r.rarity
+                            break
+                        end
+                    end
+                    SkinData[skinFullName] = {
+                        Cost = cost,
+                        Rarity = foundRarity,
+                        Material = material
+                    }
+                end
+            end
+        end
+        return SkinData
+    end
+    
+    local AllSkinsData = GetAllSkinsData()
+    local SkinNames = {}
+    for name in pairs(AllSkinsData) do
+        table.insert(SkinNames, name)
+    end
+    table.sort(SkinNames)
+    
+    if #SkinNames == 0 then
+        pcall(function() SkinsTab:CreateLabel("No skins found") end)
+        return
+    end
+    
+    local CostLabel = pcall(function() return Section:CreateLabel(GetText("skinCost") .. ": -") end) and Section:CreateLabel(GetText("skinCost") .. ": -") or SkinsTab:CreateLabel(GetText("skinCost") .. ": -")
+    local RarityLabel = pcall(function() return Section:CreateLabel(GetText("skinRarity") .. ": -") end) and Section:CreateLabel(GetText("skinRarity") .. ": -") or SkinsTab:CreateLabel(GetText("skinRarity") .. ": -")
+    local MaterialLabel = pcall(function() return Section:CreateLabel(GetText("skinMaterial") .. ": -") end) and Section:CreateLabel(GetText("skinMaterial") .. ": -") or SkinsTab:CreateLabel(GetText("skinMaterial") .. ": -")
+    local SelectedSkin = nil
+    
+    -- [CORREÇÃO] Criar o dropdown na Aba (SkinsTab) e associar à Seção (Section)
+    SkinsTab:CreateDropdown({
+        Name = GetText("skinSelect"),
+        SectionParent = Section,
+        Options = SkinNames,
+        CurrentOption = {},
+        MultipleOptions = false,
+        Flag = "SkinDropdown",
+        Callback = function(Options)
+            if #Options > 0 then
+                SelectedSkin = Options[1]
+                local data = AllSkinsData[SelectedSkin]
+                CostLabel:Set(GetText("skinCost") .. ": " .. (data.Cost or "?"))
+                RarityLabel:Set(GetText("skinRarity") .. ": " .. (data.Rarity or "Unknown"))
+                MaterialLabel:Set(GetText("skinMaterial") .. ": " .. (data.Material or "Unknown"))
+            else
+                SelectedSkin = nil
+                CostLabel:Set(GetText("skinCost") .. ": -")
+                RarityLabel:Set(GetText("skinRarity") .. ": -")
+                MaterialLabel:Set(GetText("skinMaterial") .. ": -")
+            end
+        end
+    })
+    
+    -- [CORREÇÃO] Criar o botão na Aba (SkinsTab) e associar à Seção (Section)
+    SkinsTab:CreateButton({
+        Name = GetText("skinBuy"),
+        SectionParent = Section,
+        Callback = function()
+            if SelectedSkin then
+                local success = SafeInvoke(RemoteFolder:WaitForChild("BuySkin"), SelectedSkin)
+                if not success then
+                    Rayfield:Notify({
+                        Title = "Error",
+                        Content = GetText("skinError"),
+                        Duration = 4,
+                        Image = "alert-triangle"
+                    })
+                end
+            else
+                Rayfield:Notify({
+                    Title = GetText("skinNoSelection"),
+                    Content = GetText("skinPleaseSelect"),
+                    Duration = 4,
+                    Image = "alert-triangle"
+                })
+            end
+        end
+    })
+end
+
+-- Settings tab removed
+
+-- ============================================================================
+--                                 WEBHOOK TAB
+-- ============================================================================
+
+local function CreateWebhookTab()
+    local WebhookTab = Window:CreateTab("Webhook", "webhook")
+    local Section = WebhookTab:CreateSection("Webhook Settings")
+
+    local webhookURL = ""
+    local enableLogs = false
+
+    WebhookTab:CreateInput({
+        Name = "Webhook URL",
+        SectionParent = Section,
+        PlaceholderText = "https://discord.com/api/webhooks/...",
+        RemoveTextAfterFocusLost = false,
+        Callback = function(text)
+            webhookURL = text
+        end
+    })
+
+    -- (Roblox username will always be included in the embed author)
+
+    SendWebhook = function(content)
+        if webhookURL == "" then
+            Rayfield:Notify({
+                Title = "Error",
+                Content = "Please set a webhook URL first",
+                Duration = 3,
+                Image = "alert-triangle"
+            })
+            return false
+        end
+
+        -- Get username and userId safely
+        local username = ""
+        local userId = nil
+        pcall(function()
+            local players = game:GetService("Players")
+            if players then
+                local localPlayer = players.LocalPlayer
+                if localPlayer then
+                    username = localPlayer.Name or ""
+                    userId = localPlayer.UserId
+                end
+            end
+        end)
+
+        -- Build payload: support either a simple string or a table containing { embeds = {...} }
+        local payload = {
+            username = "Lapo Hub",
+            avatar_url = "https://tr.rbxcdn.com/e2b8fdb35a39caa95f2aa1c48a2f7cd2/150/150/Image/Png"
+        }
+
+        if type(content) == "table" then
+            -- assume embed payload: content should have embeds (array)
+            -- inject author info into each embed so player's name/avatar appears
+            payload.embeds = {}
+            -- prepare headshot url if we have userId
+            local headshot = nil
+            if userId and type(userId) == "number" and userId > 0 then
+                headshot = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. tostring(userId) .. "&width=48&height=48&format=png"
+            end
+            for _, e in ipairs(content.embeds or {}) do
+                local copy = e
+                copy.author = copy.author or {}
+                copy.author.name = copy.author.name or (username ~= "" and username or "Player")
+                copy.author.icon_url = copy.author.icon_url or headshot or "https://tr.rbxcdn.com/e2b8fdb35a39caa95f2aa1c48a2f7cd2/150/150/Image/Png"
+                -- do NOT add a thumbnail here (user requested no thumbnail)
+                table.insert(payload.embeds, copy)
+            end
+        else
+            -- fallback to text content; include username prefix
+            payload.content = (username ~= "" and ("**" .. username .. "**\n") or "") .. (content or "")
+        end
+
+        local jsonBody
+        local ok = pcall(function()
+            jsonBody = game:GetService("HttpService"):JSONEncode(payload)
+        end)
+
+        if not ok then
+            Rayfield:Notify({
+                Title = "Error",
+                Content = "Failed to prepare webhook data",
+                Duration = 3,
+                Image = "alert-triangle"
+            })
+            return false
+        end
+
+        -- Try to send webhook with multiple request methods
+        local success, response
+        success = pcall(function()
+            if syn then
+                response = syn.request({
+                    Url = webhookURL,
+                    Method = "POST",
+                    Headers = {
+                        ["Content-Type"] = "application/json"
+                    },
+                    Body = jsonBody
+                })
+            elseif http_request then
+                response = http_request({
+                    Url = webhookURL,
+                    Method = "POST",
+                    Headers = {
+                        ["Content-Type"] = "application/json"
+                    },
+                    Body = jsonBody
+                })
+            elseif request then
+                response = request({
+                    Url = webhookURL,
+                    Method = "POST",
+                    Headers = {
+                        ["Content-Type"] = "application/json"
+                    },
+                    Body = jsonBody
+                })
+            else
+                response = game:GetService("HttpService"):RequestAsync({
+                    Url = webhookURL,
+                    Method = "POST",
+                    Headers = {
+                        ["Content-Type"] = "application/json"
+                    },
+                    Body = jsonBody
+                })
+            end
+        end)
+
+        if not success then
+            Rayfield:Notify({
+                Title = "Error",
+                Content = "Failed to send webhook: " .. tostring(response),
+                Duration = 5,
+                Image = "alert-triangle"
+            })
+            return false
+        end
+
+        if response and (response.StatusCode == 204 or response.StatusCode == 200) then
+            Rayfield:Notify({
+                Title = "Success",
+                Content = "Webhook sent successfully!",
+                Duration = 2,
+                Image = "check-circle"
+            })
+            return true
+        else
+            Rayfield:Notify({
+                Title = "Error",
+                Content = "Failed to send webhook. Status: " .. tostring(response and response.StatusCode or "?"),
+                Duration = 5,
+                Image = "alert-triangle"
+            })
+            return false
+        end
+    end
+
+    WebhookTab:CreateButton({
+        Name = "Test Webhook",
+        SectionParent = Section,
+        Callback = function()
+            SendWebhook("Test message from Lapo's Script!")
+        end
+    })
+
+    local function GetStatsMessage()
+        local data = GetReturnData()
+        if not data then return "Failed to get player data" end
+
+        -- Helper to safely get nested values with fallback
+        local function safe(t, key, fallback)
+            if not t or type(t) ~= "table" then return fallback end
+            local v = t[key]
+            if v == nil then return fallback end
+            return v
+        end
+
+        -- Grab requested fields
+        local passTier = safe(data, "PassTier", 0)
+        local passExp = safe(data, "PassEXP", 0)
+
+        local items = data.Items or {}
+        local holyGrail = tonumber(safe(items, "Holy Grail", 0)) or 0
+        local celestial = tonumber(safe(items, "Celestial Crystal", 0)) or 0
+        local superCelestial = tonumber(safe(items, "Super Celestial Crystal", 0)) or 0
+
+    local gem = tonumber(safe(data, "Gem", safe(items, "Gem", 0))) or 0
+    local gold = tonumber(safe(data, "Gold", 0)) or 0
+    local puzzles = tonumber(safe(data, "Puzzles", safe(data, "Puzzle", 0))) or 0
+
+        -- Limit Break status (IsLB) and rank
+        local isLB = false
+        local lbRank = nil
+        if type(data.IsLB) == "table" then
+            if data.IsLB.weekly and data.IsLB.weekly.OnBoard ~= nil then
+                isLB = data.IsLB.weekly.OnBoard == true
+            end
+            if data.IsLB.weekly and data.IsLB.weekly.Rank then
+                lbRank = data.IsLB.weekly.Rank
+            end
+        end
+
+        -- Exp under Level (some data use 'Exp' or 'EXP') - the user said line 9
+        local currentExp = safe(data, "Exp", safe(data, "EXP", 0))
+
+        -- Basic player info
+        local playerName = "Unknown"
+        pcall(function()
+            local pl = game:GetService("Players").LocalPlayer
+            if pl then playerName = pl.Name or playerName end
+        end)
+
+        -- helper: simple text progress bar
+        local function progressBar(current, max, length)
+            length = length or 12
+            current = tonumber(current) or 0
+            max = tonumber(max) or 1
+            local filled = math.floor((current / math.max(max,1)) * length)
+            if filled < 0 then filled = 0 end
+            if filled > length then filled = length end
+            return string.rep("▰", filled) .. string.rep("▱", length - filled)
+        end
+
+        -- Build a Discord embed table (polished)
+        local lbStatusEmoji = isLB and "✅" or "❌"
+
+        local function bold(v) return "**" .. tostring(v) .. "**" end
+
+        local passMax = 100 -- assumption if unknown
+        local fields = {
+            {
+                name = "🎟️ Pass",
+                value = string.format("Tier: %s · %s %s", bold(passTier), progressBar(passExp, passMax, 10), bold(passExp)),
+                inline = false
+            },
+            {
+                name = "💰 Currency",
+                value = string.format("Gem: %s\nGold: %s\nPuzzles: %s", bold(gem), bold(gold), bold(puzzles)),
+                inline = true
+            },
+            {
+                name = "📦 Items",
+                value = string.format("Holy Grail: %s\nCelestial Crystal: %s\nSuper Celestial Crystal: %s", bold(holyGrail), bold(celestial), bold(superCelestial)),
+                inline = false
+            },
+            {
+                name = "🏆 LB",
+                value = string.format("%s %s", lbStatusEmoji, (isLB and "OnBoard" or "Not OnBoard")),
+                inline = true
+            }
+        }
+
+        if lbRank then
+            table.insert(fields, {
+                name = "🔢 LB Rank",
+                value = bold(lbRank),
+                inline = true
+            })
+        end
+
+        table.insert(fields, {
+            name = "🆙 Level / Exp",
+            value = string.format("Level: %s\n%s %s", bold(data.Level or "N/A"), progressBar(currentExp, 100, 12), bold(currentExp)),
+            inline = true
+        })
+
+        -- Footer with localized time "Hoje às HH:MM"
+        local hour = os.date("%H")
+        local min = os.date("%M")
+        local footerText = "Generated by Lapo Hub • Hoje às " .. tostring(hour) .. ":" .. tostring(min)
+
+        local embed = {
+            title = "Player Stats",
+            description = "Overview of the account",
+            color = 0x4B0082,
+            author = {
+                name = tostring(playerName),
+                icon_url = "https://tr.rbxcdn.com/e2b8fdb35a39caa95f2aa1c48a2f7cd2/150/150/Image/Png"
+            },
+            fields = fields,
+            footer = { text = footerText },
+            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+        }
+
+        return { embeds = { embed } }
+    end
+
+    WebhookTab:CreateButton({
+        Name = "Send Webhook (Stats)",
+        SectionParent = Section,
+        Callback = function()
+            SendWebhook(GetStatsMessage())
+        end
+    })
+
+    -- Enable Logs Toggle and system
+    WebhookTab:CreateToggle({
+        Name = "Enable Logs",
+        SectionParent = Section,
+        CurrentValue = false,
+        Flag = "EnableWebhookLogs",
+        Callback = function(Value)
+            enableLogs = Value
+            WEBHOOK_LOGS_ENABLED = Value
+            Rayfield:Notify({
+                Title = "Webhook Logs",
+                Content = Value and "Enabled" or "Disabled",
+                Duration = 2,
+                Image = Value and "check-circle" or "alert-triangle"
+            })
+        end
+    })
+
+    WebhookTab:CreateButton({
+        Name = "Send Test Log",
+        SectionParent = Section,
+        Callback = function()
+            if webhookURL == "" then
+                Rayfield:Notify({ Title = "Error", Content = "Please set a webhook URL first", Duration = 3, Image = "alert-triangle" })
+                return
+            end
+
+            local plName = "Player"
+            pcall(function() plName = game:GetService("Players").LocalPlayer.Name or plName end)
+
+            local embed = {
+                title = "Auto Best Trait All (Test)",
+                description = "Test log sent from Lapo Hub",
+                color = 0x58D68D,
+                fields = {
+                    { name = "Queue", value = "1/4", inline = true },
+                    { name = "Unit (current)", value = plName, inline = true },
+                    { name = "Current Trait", value = "The Honored One", inline = false }
+                },
+                footer = { text = "Lapo Hub Logs (test)" },
+                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+            }
+
+            SendWebhook({ embeds = { embed } })
+        end
+    })
+
+    -- Hook into the Holy Grail function to log units
+    local oldSafeFire = SafeFire
+    SafeFire = function(remote, ...)
+        local args = {...}
+        local result = oldSafeFire(remote, ...)
+
+        if enableLogs and remote and remote.Name then
+            if remote.Name == "HolyGrail" and args[1] then
+                local unitName = args[1]
+                local data = GetReturnData()
+                if data and data.Units and data.Units[unitName] then
+                    local unit = data.Units[unitName]
+                    local mods = unit.Modifiers or unit.Mods or {}
+                    local atk = tonumber(mods.ATK) or 1
+                    local sta = tonumber(mods.STA) or 1
+                    local cost = tonumber(mods.COST) or 1
+                    local function formatStat(name, x)
+                        local v = tonumber(x) or 1
+                        if math.abs(v - 1.5) < 0.01 then
+                            if name == "COST" then return "85%" end
+                            return "115%"
+                        end
+                        return tostring(math.floor(v * 100)) .. "%%"
+                    end
+
+                    local embed = {
+                        title = "Holy Grail Used",
+                        description = "A Holy Grail was used on a unit",
+                        color = 0x7B3FBF,
+                        fields = {
+                            { name = "Unit", value = tostring(unitName), inline = true },
+                            { name = "Upgrade", value = tostring(unit.Upgrade or "N/A"), inline = true },
+                            { name = "Limit Break", value = tostring(unit.LimitBreak or "N/A"), inline = true },
+                            { name = "Current Stats", value = string.format("ATK: %s · STA: %s · COST: %s", formatStat("ATK", atk), formatStat("STA", sta), formatStat("COST", cost)), inline = false }
+                        },
+                        footer = { text = "Lapo Hub Logs" },
+                        timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+                    }
+                    -- debug: notify and warn so we can confirm this branch runs
+                    pcall(function()
+                        Rayfield:Notify({ Title = "Webhook", Content = "Preparing HolyGrail log: " .. tostring(unitName), Duration = 2, Image = "info" })
+                    end)
+                    warn("HolyGrail webhook for unit:", unitName, "mods:", mods)
+                    SendWebhook({ embeds = { embed } })
+                end
+            end
+        end
+
+        return result
+    end
+
+    -- Hook into the trait function to log trait changes
+    local oldSafeInvoke = SafeInvoke
+    SafeInvoke = function(remote, ...)
+        local args = {...}
+        local result = oldSafeInvoke(remote, ...)
+
+        if enableLogs and remote and remote.Name then
+            -- HolyGrail can be invoked via SafeInvoke with unitName as first arg
+            if remote.Name == "HolyGrail" and args[1] then
+                local unitName = args[1]
+                local data = GetReturnData()
+                if data and data.Units and data.Units[unitName] then
+                    local unit = data.Units[unitName]
+                    local mods = unit.Modifiers or unit.Mods or {}
+                    local atk = tonumber(mods.ATK) or 1
+                    local sta = tonumber(mods.STA) or 1
+                    local cost = tonumber(mods.COST) or 1
+                    
+                    local function formatStat(name, x)
+                        local v = tonumber(x) or 1
+                        if math.abs(v - 1.5) < 0.01 then
+                            if name == "COST" then return "85%" end
+                            return "115%"
+                        end
+                        return tostring(math.floor(v * 100)) .. "%"
+                    end
+
+                    local embed = {
+                        title = "Holy Grail Used",
+                        description = "A Holy Grail was used on a unit",
+                        color = 0x7B3FBF,
+                        fields = {
+                            { name = "Unit", value = tostring(unitName), inline = true },
+                            { name = "Level", value = tostring(unit.Upgrade or "N/A"), inline = true },
+                            { name = "Limit Break", value = tostring(unit.LimitBreak or "N/A"), inline = true },
+                            { name = "Current Stats", value = string.format("ATK: %s · SPA: %s · COST: %s", formatStat("ATK", atk), formatStat("STA", sta), formatStat("COST", cost)), inline = false }
+                        },
+                        footer = { text = "Lapo Hub Logs" },
+                        timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+                    }
+                    pcall(function()
+                        Rayfield:Notify({ Title = "Webhook", Content = "Preparing HolyGrail log: " .. tostring(unitName), Duration = 2, Image = "info" })
+                    end)
+                    warn("HolyGrail webhook for unit:", unitName, "mods:", mods)
+                    SendWebhook({ embeds = { embed } })
+                end
+            end
+            if remote.Name == "traitRemote" and args[2] then
+                local unitName = args[2]
+                local traitResult = result and (type(result) == "table" and result[1] or result)
+                if traitResult then
+                    local embed = {
+                        title = "Trait Changed",
+                        description = "A unit's trait has changed",
+                        color = 0x5DADE2,
+                        fields = {
+                            { name = "Unit", value = tostring(unitName), inline = true },
+                            { name = "New Trait", value = tostring(traitResult), inline = true }
+                        },
+                        footer = { text = "Lapo Hub Logs" },
+                        timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+                    }
+                    SendWebhook({ embeds = { embed } })
+                end
+            end
+        end
+
+        return result
+    end
+end
+
+-- ============================================================================
+--                                INITIALIZATION
+-- ============================================================================
+
+-- Run tab creation inside a safe runner to surface runtime errors per-tab
+local function safeRun(name, fn)
+    local ok, err = pcall(fn)
+    if not ok then
+        warn("Lapo Hub: error while running " .. tostring(name) .. " -> " .. tostring(err))
+    end
+end
+
+safeRun("CreateStatsTab", CreateStatsTab)
+safeRun("CreateInfiniteTab", CreateInfiniteTab)
+safeRun("CreateQuestsTab", CreateQuestsTab)
+safeRun("CreateLimitBreakTab", CreateLimitBreakTab)
+safeRun("CreateBannersTab", CreateBannersTab)
+safeRun("CreateStagesTab", CreateStagesTab)
+safeRun("CreateTraitsTab", CreateTraitsTab)
+safeRun("CreateSkinsTab", CreateSkinsTab)
+safeRun("CreateWebhookTab", CreateWebhookTab)
