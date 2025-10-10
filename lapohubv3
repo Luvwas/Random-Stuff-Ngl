@@ -1421,8 +1421,8 @@ local function CreateTraitsTab()
             local targetTraits = {
                 ["The Honored One"] = true,
                 ["The Fallen One"] = true,
-                ["Assassin"] = true
-                ["Divine Treasure"] = true,
+                ["Assassin"] = true,
+                ["Divine Treasure"] = true
             }
             
             local ignoreUnits = {
