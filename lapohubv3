@@ -1145,6 +1145,7 @@ local function CreateStagesTab()
         {DisplayName = "Execution Base", Trigger = "Execution Base"},
         {DisplayName = "Kujaku House", Trigger = "Kujaku House"},
         {DisplayName = "Pinky Island", Trigger = "Pinky Island"},
+        {DisplayName = "Nyx Avatar", Trigger = "The Death Avatar"},
         {DisplayName = "Forbidden Graveyard", Trigger = "Forbidden Graveyard"},
         {DisplayName = "Dessert Witch", Trigger = "Dessert Witch"},
     }
