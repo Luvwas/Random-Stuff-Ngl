@@ -759,7 +759,7 @@ local function CreateLimitBreakTab()
     local units = {
         "Vending Machine", "Stone Doctor", "Shining Star Idol",
         "Investigator", "Denis", "Ultimis", "CapsuleGirl",
-        "Shielder", "Peem", "Leader", "Gamble Queen"
+        "Shielder", "Peem", "Leader", "Gamble Queen", "Ramen Guy"
     }
     
     if #units == 0 then return end
