@@ -1116,7 +1116,7 @@ local function CreateBannersTab()
         {Name = "April Fool's Event", Type = "Gacha", Triggers = {[1] = "AprilFool", [2] = "AprilFool"}, Requirement = "Requires Cursed Doll"},
         {Name = "New Years Banner", Type = "Gacha", Triggers = {[1] = "New Year Banner", [2] = "New Year Banner"}, Requirement = "Puzzle"},
         {Name = "Anniversary Banner", Type = "Gacha", Triggers = {[1] = "Aniversary Banner", [2] = "Aniversary Banner"}, Requirement = "Puzzle"},
-        {Name = "Legendary Festival", Type = "Gacha", Triggers = {[1] = "Legend Festival", [2] = "Legend Festival"}, Requirement = "Puzzle"},
+        {Name = "Legendary Festival", Type = "Gacha", Triggers = {[1] = "eeeeeLegend Festival", [2] = "eeeeeLegend Festival"}, Requirement = "Puzzle"},
     }
     
     CreateBannerSection("Standard Banners", bannerList, false)
