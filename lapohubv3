@@ -1101,6 +1101,9 @@ local function CreateBannersTab()
         {Name = "Ultimate Warrior", Type = "Gacha", Triggers = {[1] = "Ultimate Warrior", [2] = "Ultimate Warrior"}, Requirement = "Requires Puzzle"},
         {Name = "Soul Banner With Puzzles", Type = "Gacha", Triggers = {[1] = "Soul Banner With Puzzles", [2] = "Soul Banner With Puzzles"}, Requirement = "Requires Puzzle"},
         {Name = "Stardust Crusader", Type = "Gacha", Triggers = {[1] = "Stardust Crusader", [2] = "Stardust Crusader"}, Requirement = "Requires Puzzle"},
+        {Name = "Skin Banner", Type = "Gacha", Triggers = {[1] = "Skin Banner", [2] = "Skin Banner"}, Requirement = "Requires Puzzle"},
+        {Name = "Skin Banner2", Type = "Gacha", Triggers = {[1] = "Skin Banner2", [2] = "Skin Banner2"}, Requirement = "Requires Puzzle"},
+        {Name = "Skin Banner3", Type = "Gacha", Triggers = {[1] = "Skin Banner3", [2] = "Skin Banner3"}, Requirement = "Requires Puzzle"},
     }
     
     local eventBannerList = {
