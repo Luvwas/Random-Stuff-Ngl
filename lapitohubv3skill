@@ -1,0 +1,422 @@
+-- Lapo Hub V3 - Ingame (Auto Use Skill) | FIXED & CLEAN
+-- Principais ajustes:
+-- 1) Um único Refresh para TODOS os dropdowns
+-- 2) Removido 'local' duplicado do StarkeiTargetDropdown (sem sombra de variável)
+-- 3) Padronização de :Refresh e :Set nos dropdowns (+ fallback seguro)
+-- 4) Conversão para Starkei chama o mesmo Refresh geral
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local LocalPlayer = Players.LocalPlayer
+local RemoteFolder = ReplicatedStorage:WaitForChild("Remote")
+local AbilityRemote = RemoteFolder:WaitForChild("UnitAbility")
+local UnitsFolder = Workspace:WaitForChild("Units")
+
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+
+local Window = Rayfield:CreateWindow({
+    Name = "Lapo Hub V3 - Ingame",
+    LoadingTitle = "Lapo Hub V3 - Ingame",
+    LoadingSubtitle = "Ver 3.04 | Made by Luvwas",
+    ConfigurationSaving = { Enabled = true, FolderName = "LapoHubV3", FileName = "Ingame" },
+    Discord = { Enabled = false },
+    KeySystem = false
+})
+
+local Tab = Window:CreateTab("Auto Use Skill", 4483362458)
+Rayfield:Notify({ Title = "Lapo Hub V3 - Ingame", Content = "Verso 3.04 carregada com sucesso!", Duration = 5 })
+
+-- Utils
+local function asString(opt)
+    if type(opt) == "table" then
+        return tostring(opt[1] or "")
+    end
+    return tostring(opt or "")
+end
+
+local function IsOwnedUnit(instance)
+    local info = instance:FindFirstChild("Info")
+    local owner = info and info:FindFirstChild("Owner")
+    return owner and owner.Value == LocalPlayer.Name
+end
+
+local function GetPlayerUnits()
+    local list = {}
+    for _, unit in ipairs(UnitsFolder:GetChildren()) do
+        if IsOwnedUnit(unit) then table.insert(list, unit.Name) end
+    end
+    table.sort(list)
+    return list
+end
+
+-- Fallback seguro para atualizar opções em Rayfield, caso a versão mude
+local function SafeRefreshDropdown(dropdown, options, keepCurrent)
+    if not dropdown then return end
+    local ok = false
+    -- API moderna
+    ok = pcall(function()
+        dropdown:Refresh(options, keepCurrent and true or false)
+    end)
+    if not ok then
+        -- Tentativa de API antiga
+        pcall(function()
+            if dropdown.SetOptions then
+                dropdown:SetOptions(options)
+            end
+        end)
+    end
+end
+
+local function SafeSetDropdown(dropdown, singleOption)
+    if not dropdown then return end
+    pcall(function()
+        dropdown:Set({singleOption})
+    end)
+end
+
+-- Lista simples de skills
+local AllSkills = {
+    "Ado Buff","All Seeing Eyes","DragonTS","DragonRewind","Itto Shura","Phantoms Show EX","Phantoms Dance EX","Phantoms Rampage EX",
+    "Death Line","Golden Apple","Third Impact","120% Power","Blood Moon",
+    "Supernova Trap","Blossom Heal","Phosphor","Vitality Sacrifice","Solo Act",
+    "Serious Squirt Gun","Serious Punch","Hakai","Kurama Buff","River Of Death",
+    "Summon Beelzebub","Star Platinum TS","Phantoms Rampage","Red Eye Sword",
+    "DarkBeardActive","UQ Revive","Shadow TS","Sandevistan","Night Queen",
+    "Death Dragon Explosion","Doomshriek","Shambles","Heavy Sand Storm",
+    "Time Skip","Tides of Time","Fatal Point Attack","Doge Protection",
+    "Affinity Change","Revitalize Soul","Actualization Revert","Attack Position",
+    "Full Force","Draconic Awaken","Dragon Meal","Dragonic Force","Dragon Shield",
+    "God Sacrifice","Psychic Carry","Agidy","Hades Door","Orotario",
+    "Great Seal","Magic Mark","Final Art","Ray Horizon","Charisma of Desire",
+    "Roadless Camelot","Fetch Failnaught","10 Year","1000 Year","Recovery Angel",
+    "Chocolate Beam","Copy Slot1","Copy Slot2","Copy Slot3","Copy Slot4",
+    "Copy Slot5","Copy Slot6","Pressure Shun","Cauterization","Rumbling",
+    "Marble Phantasm","Future Hope","Gamble Queen Jack","Gamble Queen Food",
+    "Gamble Queen Card","Gamble Queen All In","Gamble Queen Pachinko","Hakari Domain",
+    "Go Beyond","Friction Plundering","Heal Bubble","Explode Speech","Crumble Speech",
+    "Die Speech","Golden Recovery","Allas Workshop","Atelier Logic","Crystal Atelier",
+    "Durandal","Mook Workshop","Ranga Workshop","Wheels Industry","Zelkova Workshop",
+    "Furioso","World Flower","Ice Curse","Halloween","Red Rampage",
+    "Bloodcurdle","Sacrifice Ghost","Horn Of Rewind","Plasmatic Robe","HunterKid End",
+    "Rukia Dance","IceAge Bankai","Ice Hell","Illusion Ninja Clone","Absolute Reconstruction",
+    "Rewind Punch","Drain","Judge Domain","Rich Wish","Protection Wish",
+    "Power Wish","Detonate","Rupture Sword","Kill","Kill all",
+    "Evil Domain","Konghan SSJ2","Kaioken","Kongkun GT SSJ","Super Spirit Bomb",
+    "Kriezer Training","Kroly Rage","Mana Buff","I am the All Range Atomic",
+    "I am Recovery Atomic","I am Atomic","Dress","Berserker Rage","Magical Splash Flare",
+    "Meteor Volcano","Magnet Prison","Death Shot","Perfect Susanoo","One Meteor",
+    "Two Meteors","Perfect Susanoo First","Perfect Susanoo Last","Swap Ink",
+    "Lai Rhyme Goodfellow","Aleph","Bet","Gimel","Dalet",
+    "Hei","Vav","Zayin","Het","Tet",
+    "Yud","Yud Aleph","Yud Bet","Metamorphosis","Youre Next",
+    "Reverse Cursed","Trust","Next Generation","Fallen Angel","Time Rewind",
+    "Spacequake","Domination","Amulet Heart","Amulet Spade","Amulet Clover",
+    "Amulet Dia","Amulet Angel","Amulet Devil","Amulet Fortune","Open Heart Full Volume",
+    "Twinkle Shield","Road of Stars","Devils Tune","Pom pom Pom","Heart Speeders",
+    "Amulet Jewel Heart","Remake Honey","Sweet Applique","Remake Honey Special",
+    "Quincy Force","Sis","Ultimate Blade Work","Conqueror","Immortal",
+    "Reverse Gravity","Rock and Roll","Luminosite Eternelle","Ruler Blessing",
+    "Sakura Field","Base Armor","Pure Armor","Lightning Armor","Holy Armor",
+    "The Fascinating Horizon","Protection Barrier","Angel Rewind","Angel Revive",
+    "Combat Stance","Second Generation","Third Generation","Sun Wheel","Arise",
+    "The Greatest Wall","Idol Buff","Kongkun","Dark Swordsman","Ruffy",
+    "Uchigo","Koji","Cotaro","Tochi","Parody Combo",
+    "Kongkun & Ruffy","Kongkun & Uchigo","Dark Swordsman & Ruffy","Dark Swordsman & Uchigo",
+    "Ruffy & Koji","Uchigo & Tochi","Koji & Kongkun","Koji & Tochi",
+    "Cotaro & Others","Tochi & Others","Cotaro & Tochi","Overdrive","Ragnarok",
+    "Faulty Atomic","Hogyoku Evolution","Kyoka Suigetsu","Hogyoku Evolution II",
+    "Hogyoku Evolution III","Kurohitsugi","Full Incantation Kurohitsugi","Absolute Hypnosis",
+    "Mass Manipulation","Virtual Black Hole","Savior of the AWTD","Stellar Gravity",
+    "Create Invention","Revive","Rho Ias","Berserk Shirou","Flower Shirou",
+    "Knife Shirou","Sword Shirou","Kamui Attack","Shadow Domain","Tamamo",
+    "Uzumaki","Malevolent Shrine","Divine Treasure","Defensive Adaptation","Persona Seth",
+    "Persona Yoshitsune","Persona Raoul","Persona Alice","Phantoms Show","Demon",
+    "Kings Engine","Za Warudo","The Grappler Buff","Time Lock","Hairpin",
+    "Final Mugetsu","Emotional","Round of Avalon","Justice Hall","Void Tech",
+    "Void Tech 0_2s","Red Tech","Blue Tech","Purple Tech","Heal Hado",
+    "Kannonbiraki Benihime Aratame","Aqua Buff","Veshikun Taunting","Self Explosion",
+    "Sacrifice of Pride","Phantoms Dance","Blue Rose","Night Sky","Hollow Mask",
+    "Volcano Domain","War Devil Spinal Cord","War Devil Uniform Sword","War Devil Aquarium Spear",
+    "War Devil Room","Bloodlust","Return By Death","Savior Spear","Magical Sea",
+    "Weapon Combo","Rain Shards","Memory of Londinium","Calamity Rain","Unachievable",
+    "Time Traveler"
+}
+
+-- Estado
+local allUnits = GetPlayerUnits()
+local selectedUnit, selectedSkill
+local UnitDropdown, SkillDropdown, StarkeiTargetDropdown
+local starkeiTarget
+local autoUse = false
+local autoStarkei = false
+
+-- Função: cria lista única (por segurança)
+local function UniqueList(list)
+    local seen, out = {}, {}
+    for _, v in ipairs(list) do
+        if not seen[v] then
+            seen[v] = true
+            table.insert(out, v)
+        end
+    end
+    return out
+end
+
+-- REFRESH ÚNICO para TODOS os dropdowns (units + starkei target)
+local function RefreshAllDropdowns()
+    allUnits = GetPlayerUnits()
+    local uniqueUnits = UniqueList(allUnits)
+
+    if UnitDropdown then
+        SafeRefreshDropdown(UnitDropdown, uniqueUnits, true)
+    end
+    if StarkeiTargetDropdown then
+        SafeRefreshDropdown(StarkeiTargetDropdown, uniqueUnits, true)
+    end
+
+    Rayfield:Notify({ Title = "Refresh", Content = "Found " .. #uniqueUnits .. " units", Duration = 2 })
+end
+
+-- UI: Botão Refresh
+Tab:CreateButton({
+    Name = "🔄 Refresh Units",
+    Callback = function()
+        RefreshAllDropdowns()
+    end
+})
+
+-- Dropdown de Unidade
+UnitDropdown = Tab:CreateDropdown({
+    Name = "Select Unit",
+    Options = allUnits,
+    CurrentOption = (#allUnits > 0 and {allUnits[1]} or {"None"}),
+    MultipleOptions = false,
+    Flag = "UnitDropdown",
+    Callback = function(option)
+        selectedUnit = asString(option)
+        Rayfield:Notify({ Title = "Unit Selected", Content = "Unit: " .. selectedUnit, Duration = 2 })
+    end
+})
+
+-- Input de busca de skill (filtra dinamicamente)
+local SearchInput = Tab:CreateInput({
+    Name = "Search Skills",
+    PlaceholderText = "Type to filter skills...",
+    RemoveTextAfterFocusLost = false,
+    CurrentValue = "",
+    Callback = function(text)
+        local q = string.lower(text or "")
+        if q == "" then
+            -- Restaurar lista completa
+            SafeRefreshDropdown(SkillDropdown, AllSkills, false)
+            return
+        end
+        local filtered = {}
+        for _, skillName in ipairs(AllSkills) do
+            if string.find(string.lower(skillName), q, 1, true) then
+                table.insert(filtered, skillName)
+            end
+        end
+        if #filtered == 0 then
+            filtered = {"(no match)"}
+        end
+        SafeRefreshDropdown(SkillDropdown, filtered, false)
+    end
+})
+
+-- Dropdown de Skill
+SkillDropdown = Tab:CreateDropdown({
+    Name = "Select Skill",
+    Options = AllSkills,
+    CurrentOption = {"None"},
+    MultipleOptions = false,
+    Flag = "SkillDropdown",
+    Callback = function(option)
+        selectedSkill = asString(option)
+        Rayfield:Notify({ Title = "Skill Selected", Content = selectedSkill, Duration = 2 })
+    end
+})
+
+-- Seleciona padrão se disponível
+if #allUnits > 0 then
+    selectedUnit = allUnits[1]
+    SafeSetDropdown(UnitDropdown, selectedUnit)
+end
+
+-- Disparo de Habilidade
+local function FireAbility(unitName, skillName)
+    if not unitName or unitName == "" then return false, "Select a unit" end
+    if not skillName or skillName == "" or skillName == "None" or skillName == "(no match)" then
+        return false, "Select a skill"
+    end
+    local unit = UnitsFolder:FindFirstChild(unitName)
+    if not unit then return false, "Unit not found" end
+    local owner = unit:FindFirstChild("Info") and unit.Info:FindFirstChild("Owner")
+    if not (owner and owner.Value == LocalPlayer.Name) then return false, "Not your unit" end
+    local ok, err = pcall(function()
+        AbilityRemote:FireServer(skillName, unit)
+    end)
+    if not ok then return false, tostring(err) end
+    return true
+end
+
+-- Toggle: Auto Skill
+Tab:CreateToggle({
+    Name = "Auto Use Selected Skill",
+    CurrentValue = false,
+    Flag = "AutoSkill",
+    Callback = function(state)
+        autoUse = state
+        if state then
+            Rayfield:Notify({ Title = "Auto Skill", Content = "Started every 1s", Duration = 3 })
+            task.spawn(function()
+                while autoUse do
+                    if selectedUnit and selectedSkill and selectedSkill ~= "None" then
+                        local ok, err = FireAbility(selectedUnit, selectedSkill)
+                        if not ok and err then
+                            Rayfield:Notify({ Title = "Auto Skill Error", Content = err, Duration = 2 })
+                        end
+                    end
+                    task.wait(1)
+                end
+            end)
+        else
+            Rayfield:Notify({ Title = "Auto Skill", Content = "Stopped", Duration = 2 })
+        end
+    end
+})
+
+-- Botão: Uso manual
+Tab:CreateButton({
+    Name = "⚡ Use Selected Skill Manually",
+    Callback = function()
+        if not selectedUnit or selectedUnit == "" then
+            Rayfield:Notify({ Title = "Manual Use Error", Content = "Select a unit first", Duration = 2 })
+            return
+        end
+        if not selectedSkill or selectedSkill == "" or selectedSkill == "None" then
+            Rayfield:Notify({ Title = "Manual Use Error", Content = "Select a skill first", Duration = 2 })
+            return
+        end
+        local ok, err = FireAbility(selectedUnit, selectedSkill)
+        if ok then
+            Rayfield:Notify({ Title = "Manual Use", Content = "Used " .. selectedSkill, Duration = 2 })
+        else
+            Rayfield:Notify({ Title = "Manual Use Error", Content = err or "Failed", Duration = 3 })
+        end
+    end
+})
+
+-- Seção: Buffs rápidos
+Tab:CreateSection("Best Buffs")
+local BuffButtons = {"War Devil Uniform Sword", "Overdrive","River Of Death","Kaioken","Hakari Domain"}
+for _, skill in ipairs(BuffButtons) do
+    Tab:CreateButton({
+        Name = "Use " .. skill,
+        Callback = function()
+            if not selectedUnit or selectedUnit == "" then
+                Rayfield:Notify({ Title = "Buffer Error", Content = "Select a unit first", Duration = 2 })
+                return
+            end
+            local ok, err = FireAbility(selectedUnit, skill)
+            if ok then
+                Rayfield:Notify({ Title = "Buffer", Content = "Used " .. skill, Duration = 2 })
+            else
+                Rayfield:Notify({ Title = "Buffer Error", Content = err or "Failed", Duration = 3 })
+            end
+        end
+    })
+end
+
+-- Seção: Starkei
+Tab:CreateSection("Starkei Functions")
+
+Tab:CreateButton({
+    Name = "🔄 Refresh Units (Starkei)",
+    Callback = function()
+        RefreshAllDropdowns()
+    end
+})
+
+-- IMPORTANTE: NÃO usar 'local' aqui para NÃO sombrear a variável
+StarkeiTargetDropdown = Tab:CreateDropdown({
+    Name = "Select Unit for Starkei Skill",
+    Options = allUnits,
+    CurrentOption = (#allUnits > 0 and {allUnits[1]} or {"None"}),
+    MultipleOptions = false,
+    Flag = "StarkeiTarget",
+    Callback = function(option)
+        starkeiTarget = asString(option)
+        Rayfield:Notify({ Title = "Starkei Target", Content = "Target: " .. starkeiTarget, Duration = 2 })
+    end
+})
+
+if #allUnits > 0 then
+    starkeiTarget = allUnits[1]
+    SafeSetDropdown(StarkeiTargetDropdown, starkeiTarget)
+end
+
+-- Toggle: Auto Starkei
+Tab:CreateToggle({
+    Name = "Auto Use Starkei Skill on Target",
+    CurrentValue = false,
+    Flag = "AutoStarkei",
+    Callback = function(state)
+        autoStarkei = state
+        if state then
+            Rayfield:Notify({ Title = "Auto Starkei", Content = "Started every 1s", Duration = 3 })
+            task.spawn(function()
+                while autoStarkei do
+                    if starkeiTarget and starkeiTarget ~= "" then
+                        local ok, err = FireAbility(starkeiTarget, "Savior of the AWTD")
+                        if not ok and err then
+                            Rayfield:Notify({ Title = "Auto Starkei Error", Content = err, Duration = 2 })
+                        end
+                    end
+                    task.wait(1)
+                end
+            end)
+        else
+            Rayfield:Notify({ Title = "Auto Starkei", Content = "Stopped", Duration = 2 })
+        end
+    end
+})
+
+-- Converter para Starkei
+Tab:CreateButton({
+    Name = "Convert Selected Unit to Starkei",
+    Callback = function()
+        if not selectedUnit or selectedUnit == "" then
+            Rayfield:Notify({ Title = "Convert Error", Content = "Select a unit first", Duration = 2 })
+            return
+        end
+        local unit = UnitsFolder:FindFirstChild(selectedUnit)
+        if not unit then
+            Rayfield:Notify({ Title = "Convert Error", Content = "Unit not found", Duration = 2 })
+            return
+        end
+        local owner = unit:FindFirstChild("Info") and unit.Info:FindFirstChild("Owner")
+        if not (owner and owner.Value == LocalPlayer.Name) then
+            Rayfield:Notify({ Title = "Convert Error", Content = "Not your unit", Duration = 2 })
+            return
+        end
+
+        local oldName = unit.Name
+        unit.Name = "Starkei"
+        Rayfield:Notify({ Title = "Converted", Content = oldName .. " → Starkei", Duration = 3 })
+
+        -- Atualiza tudo com a mesma rotina
+        task.wait(0.5)
+        RefreshAllDropdowns()
+
+        -- Se existir "Starkei" agora, seleciona nos dois dropdowns
+        if UnitsFolder:FindFirstChild("Starkei") then
+            selectedUnit = "Starkei"
+            starkeiTarget = "Starkei"
+            SafeSetDropdown(UnitDropdown, "Starkei")
+            SafeSetDropdown(StarkeiTargetDropdown, "Starkei")
+        end
+    end
+})
