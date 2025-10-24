@@ -1,9 +1,5 @@
 -- Lapo Hub V3 - Ingame (Auto Use Skill) | FIXED & CLEAN
--- Principais ajustes:
--- 1) Um único Refresh para TODOS os dropdowns
--- 2) Removido 'local' duplicado do StarkeiTargetDropdown (sem sombra de variável)
--- 3) Padronização de :Refresh e :Set nos dropdowns (+ fallback seguro)
--- 4) Conversão para Starkei chama o mesmo Refresh geral
+-- Skills organizadas alfabeticamente e completas
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
@@ -19,14 +15,14 @@ local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 local Window = Rayfield:CreateWindow({
     Name = "Lapo Hub V3 - Ingame",
     LoadingTitle = "Lapo Hub V3 - Ingame",
-    LoadingSubtitle = "Ver 3.04 | Made by Luvwas",
+    LoadingSubtitle = "Ver 3.05 | Made by Luvwas",
     ConfigurationSaving = { Enabled = true, FolderName = "LapoHubV3", FileName = "Ingame" },
     Discord = { Enabled = false },
     KeySystem = false
 })
 
 local Tab = Window:CreateTab("Auto Use Skill", 4483362458)
-Rayfield:Notify({ Title = "Lapo Hub V3 - Ingame", Content = "Verso 3.04 carregada com sucesso!", Duration = 5 })
+Rayfield:Notify({ Title = "Lapo Hub V3 - Ingame", Content = "Versão 3.05 carregada com sucesso!", Duration = 5 })
 
 -- Utils
 local function asString(opt)
@@ -51,16 +47,12 @@ local function GetPlayerUnits()
     return list
 end
 
--- Fallback seguro para atualizar opções em Rayfield, caso a versão mude
 local function SafeRefreshDropdown(dropdown, options, keepCurrent)
     if not dropdown then return end
-    local ok = false
-    -- API moderna
-    ok = pcall(function()
+    local ok = pcall(function()
         dropdown:Refresh(options, keepCurrent and true or false)
     end)
     if not ok then
-        -- Tentativa de API antiga
         pcall(function()
             if dropdown.SetOptions then
                 dropdown:SetOptions(options)
@@ -76,72 +68,69 @@ local function SafeSetDropdown(dropdown, singleOption)
     end)
 end
 
--- Lista simples de skills
+-- LISTA COMPLETA DE SKILLS (ORGANIZADA ALFABETICAMENTE)
 local AllSkills = {
-    "Ado Buff","All Seeing Eyes","DragonTS","DragonRewind","Itto Shura","Phantoms Show EX","Phantoms Dance EX","Phantoms Rampage EX",
-    "Death Line","Golden Apple","Third Impact","120% Power","Blood Moon",
-    "Supernova Trap","Blossom Heal","Phosphor","Vitality Sacrifice","Solo Act",
-    "Serious Squirt Gun","Serious Punch","Hakai","Kurama Buff","River Of Death",
-    "Summon Beelzebub","Star Platinum TS","Phantoms Rampage","Red Eye Sword",
-    "DarkBeardActive","UQ Revive","Shadow TS","Sandevistan","Night Queen",
-    "Death Dragon Explosion","Doomshriek","Shambles","Heavy Sand Storm",
-    "Time Skip","Tides of Time","Fatal Point Attack","Doge Protection",
-    "Affinity Change","Revitalize Soul","Actualization Revert","Attack Position",
-    "Full Force","Draconic Awaken","Dragon Meal","Dragonic Force","Dragon Shield",
-    "God Sacrifice","Psychic Carry","Agidy","Hades Door","Orotario",
-    "Great Seal","Magic Mark","Final Art","Ray Horizon","Charisma of Desire",
-    "Roadless Camelot","Fetch Failnaught","10 Year","1000 Year","Recovery Angel",
-    "Chocolate Beam","Copy Slot1","Copy Slot2","Copy Slot3","Copy Slot4",
-    "Copy Slot5","Copy Slot6","Pressure Shun","Cauterization","Rumbling",
-    "Marble Phantasm","Future Hope","Gamble Queen Jack","Gamble Queen Food",
-    "Gamble Queen Card","Gamble Queen All In","Gamble Queen Pachinko","Hakari Domain",
-    "Go Beyond","Friction Plundering","Heal Bubble","Explode Speech","Crumble Speech",
-    "Die Speech","Golden Recovery","Allas Workshop","Atelier Logic","Crystal Atelier",
-    "Durandal","Mook Workshop","Ranga Workshop","Wheels Industry","Zelkova Workshop",
-    "Furioso","World Flower","Ice Curse","Halloween","Red Rampage",
-    "Bloodcurdle","Sacrifice Ghost","Horn Of Rewind","Plasmatic Robe","HunterKid End",
-    "Rukia Dance","IceAge Bankai","Ice Hell","Illusion Ninja Clone","Absolute Reconstruction",
-    "Rewind Punch","Drain","Judge Domain","Rich Wish","Protection Wish",
-    "Power Wish","Detonate","Rupture Sword","Kill","Kill all",
-    "Evil Domain","Konghan SSJ2","Kaioken","Kongkun GT SSJ","Super Spirit Bomb",
-    "Kriezer Training","Kroly Rage","Mana Buff","I am the All Range Atomic",
-    "I am Recovery Atomic","I am Atomic","Dress","Berserker Rage","Magical Splash Flare",
-    "Meteor Volcano","Magnet Prison","Death Shot","Perfect Susanoo","One Meteor",
-    "Two Meteors","Perfect Susanoo First","Perfect Susanoo Last","Swap Ink",
-    "Lai Rhyme Goodfellow","Aleph","Bet","Gimel","Dalet",
-    "Hei","Vav","Zayin","Het","Tet",
-    "Yud","Yud Aleph","Yud Bet","Metamorphosis","Youre Next",
-    "Reverse Cursed","Trust","Next Generation","Fallen Angel","Time Rewind",
-    "Spacequake","Domination","Amulet Heart","Amulet Spade","Amulet Clover",
-    "Amulet Dia","Amulet Angel","Amulet Devil","Amulet Fortune","Open Heart Full Volume",
-    "Twinkle Shield","Road of Stars","Devils Tune","Pom pom Pom","Heart Speeders",
-    "Amulet Jewel Heart","Remake Honey","Sweet Applique","Remake Honey Special",
-    "Quincy Force","Sis","Ultimate Blade Work","Conqueror","Immortal",
-    "Reverse Gravity","Rock and Roll","Luminosite Eternelle","Ruler Blessing",
-    "Sakura Field","Base Armor","Pure Armor","Lightning Armor","Holy Armor",
-    "The Fascinating Horizon","Protection Barrier","Angel Rewind","Angel Revive",
-    "Combat Stance","Second Generation","Third Generation","Sun Wheel","Arise",
-    "The Greatest Wall","Idol Buff","Kongkun","Dark Swordsman","Ruffy",
-    "Uchigo","Koji","Cotaro","Tochi","Parody Combo",
-    "Kongkun & Ruffy","Kongkun & Uchigo","Dark Swordsman & Ruffy","Dark Swordsman & Uchigo",
-    "Ruffy & Koji","Uchigo & Tochi","Koji & Kongkun","Koji & Tochi",
-    "Cotaro & Others","Tochi & Others","Cotaro & Tochi","Overdrive","Ragnarok",
-    "Faulty Atomic","Hogyoku Evolution","Kyoka Suigetsu","Hogyoku Evolution II",
-    "Hogyoku Evolution III","Kurohitsugi","Full Incantation Kurohitsugi","Absolute Hypnosis",
-    "Mass Manipulation","Virtual Black Hole","Savior of the AWTD","Stellar Gravity",
-    "Create Invention","Revive","Rho Ias","Berserk Shirou","Flower Shirou",
-    "Knife Shirou","Sword Shirou","Kamui Attack","Shadow Domain","Tamamo",
-    "Uzumaki","Malevolent Shrine","Divine Treasure","Defensive Adaptation","Persona Seth",
-    "Persona Yoshitsune","Persona Raoul","Persona Alice","Phantoms Show","Demon",
-    "Kings Engine","Za Warudo","The Grappler Buff","Time Lock","Hairpin",
-    "Final Mugetsu","Emotional","Round of Avalon","Justice Hall","Void Tech",
-    "Void Tech 0_2s","Red Tech","Blue Tech","Purple Tech","Heal Hado",
-    "Kannonbiraki Benihime Aratame","Aqua Buff","Veshikun Taunting","Self Explosion",
-    "Sacrifice of Pride","Phantoms Dance","Blue Rose","Night Sky","Hollow Mask",
-    "Volcano Domain","War Devil Spinal Cord","War Devil Uniform Sword","War Devil Aquarium Spear",
-    "War Devil Room","Bloodlust","Return By Death","Savior Spear","Magical Sea",
-    "Weapon Combo","Rain Shards","Memory of Londinium","Calamity Rain","Unachievable",
-    "Time Traveler"
+    "10 Year","1000 Year","120% Power",
+    "Abyssal Worm","Absolute Hypnosis","Absolute Reconstruction","Actualization Revert",
+    "Ado Buff","Adolla Burst","Affinity Change","Agidy","All Out","All Seeing Eyes",
+    "Allas Workshop","Aleph","Amulet Angel","Amulet Clover","Amulet Devil","Amulet Dia",
+    "Amulet Fortune","Amulet Heart","Amulet Jewel Heart","Amulet Spade","Angel Rewind","Angel Revive",
+    "Arabaki","Arise","Armadura Fairy","Ataraxia Armor","Atelier Logic","Athiel",
+    "Attack Position","Attempt Drain","Base Armor","Belial","Berserker Rage","Berserk Shirou",
+    "Bet","Bigbang Violet","Black Wing Armor","Blossom Heal","Blood Moon","Bloodcurdle",
+    "Bloodlust","Blue Rose","Blue Tech","Cauterization","Calamity Rain","Charisma of Desire",
+    "Chocolate Beam","Clear Heart Clothing","Combat Stance","Conqueror","Copy Slot1","Copy Slot2",
+    "Copy Slot3","Copy Slot4","Copy Slot5","Copy Slot6","Cotaro","Cotaro & Others",
+    "Cotaro & Tochi","Crumble Speech","Crystal Atelier","Dalet","Dark Swordsman","Dark Swordsman & Ruffy",
+    "Dark Swordsman & Uchigo","DarkBeardActive","Death Dragon Explosion","Death Line","Death Shot",
+    "Defensive Adaptation","Demon","Detonate","Devils Tune","Die Speech","Divine Treasure",
+    "Doge Protection","Domination","Doomshriek","Dragon Heart","Dragon Meal","Dragon Shield",
+    "Draconic Awaken","Dragonic Force","DragonRewind","DragonTS","Drain","Drain II",
+    "Dress","Durandal","Emotional","Enuma Elish","Evil Domain","Evil Domain EX",
+    "Explode Speech","Faulty Atomic","Fatal Point Attack","Fetch Failnaught","Final Art","Final Mugetsu",
+    "Flame Empress Armor","Flight Armor","Flower Shirou","Flowers on Earth","Friction Plundering","Full Force",
+    "Full Incantation Kurohitsugi","Furioso","Gamble Queen All In","Gamble Queen Card","Gamble Queen Food",
+    "Gamble Queen Jack","Gamble Queen Pachinko","Gimel","Go Beyond","God Sacrifice","Golden Apple",
+    "Golden Recovery","Golden Theater","Great Seal","Hades Door","Hairpin","Hakai",
+    "Hakari Domain","Halloween","Heal Bubble","Heal Hado","Heart Speeders","Heavens Wheel Armor",
+    "Heavy Sand Storm","Hei","Het","Hogyoku Evolution","Hogyoku Evolution II","Hogyoku Evolution III",
+    "Hollow Mask","Holy Armor","Horn Of Rewind","HunterKid End","I am Atomic","I am Atomic Radar",
+    "I am Atomic Rain","I am Atomic Sword","I am Recovery Atomic","I am the All Range Atomic","Ice Curse",
+    "Ice Hell","IceAge Bankai","Idol Buff","Illusion Ninja Clone","Im ATOMIC","Immortal",
+    "Infinite Blade World","Itto Ashura","Itto Shura","Judge Domain","Justice Hall","Kaioken",
+    "Kamui Attack","Kannonbiraki Benihime Aratame","Kill","Kill all","King Treasure Dainsleif","King Treasure Enkidu",
+    "King Treasure Halberd","King Treasure Ig-Alima","King Treasure Merodach","King Treasure True Nine Lives",
+    "Kings Engine","Knife Shirou","Koji","Koji & Kongkun","Koji & Tochi","Konghan SSJ2",
+    "Kongkun","Kongkun & Ruffy","Kongkun & Uchigo","Kongkun[GT] SSJ","Kriezer Training","Kroly Rage",
+    "Kurama Buff","Kurama Buff II","Kurohitsugi","Kyoka Suigetsu","Lai Rhyme Goodfellow","Lightning Armor",
+    "Lightning Empress Armor","Luminosite Eternelle","Magical Sea","Magical Splash Flare","Magic Mark",
+    "Magnet Prison","Malevolent Shrine","Mana Buff","Marble Phantasm","Mass Manipulation","Memory of Londinium",
+    "Metamorphosis","Meteor Volcano","Minazuki","Mook Workshop","Morning Star Armor","Nakagami Armor",
+    "Next Generation","Night Queen","Night Sky","One Meteor","Open Heart Full Volume","Orbital Sacrifice",
+    "Orches TS","Orotario","Overdrive","Parody Combo","Perfect Susanoo","Perfect Susanoo [First]",
+    "Perfect Susanoo [Last]","Perfect Susanoo First","Perfect Susanoo Last","Persona Alice","Persona Raoul",
+    "Persona Seth","Persona Yoshitsune","Phantoms Dance","Phantoms Dance EX","Phantoms Rampage","Phantoms Rampage EX",
+    "Phantoms Show","Phantoms Show EX","Phosphor","Plasmatic Robe","Pom pom Pom","Power Wish",
+    "Pressure Shun","Protection Barrier","Protection Wish","Pure Armor","Purgatory Armor","Purple Tech",
+    "Qemetiel","Quincy Force","Ragnarok","Rain Shards","Ranga Workshop","Ray Horizon",
+    "Recovery Angel","Red Eye Sword","Red Rampage","Red Tech","Remake Honey","Remake Honey Special",
+    "Return By Death","Return To Zero","Reverse Cursed","Reverse Gravity","Reverted Bankai","Reverted World",
+    "Revitalize Soul","Revive","Rewind Punch","Rho Ias","Rich Wish","River Of Death",
+    "Road of Stars","Road Roller","Roadless Camelot","Robe of Yuen","Rock and Roll","Round of Avalon",
+    "Ruffy","Ruffy & Koji","Rukia Dance","Ruler Blessing","Rumbling","Rupture Sword",
+    "Sacrifice Ghost","Sacrifice of Pride","Sakura Field","Sandevistan","Savior of the AWTD","Savior Spear",
+    "Second Generation","Serious Punch","Serious Squirt Gun","Shadow Domain","Shadow TS","Shambles",
+    "Shoko Power Up","Sis","Solo Act","Spacequake","Star Platinum TS","Stars in Heaven",
+    "Stellar Gravity","Summon Beelzebub","Sun Wheel","Super Spirit Bomb","Supernova Trap","Swap Ink",
+    "Sweet Applique","Sword Shirou","Tamamo","Tet","The Fascinating Horizon","The Grappler Buff",
+    "The Greatest Wall","Third Generation","Third Impact","Tides of Time","Time Lock","Time Rewind",
+    "Time Skip","Time Traveler","Tochi","Tochi & Others","Trust","Twinkle Shield",
+    "Two Meteors","Uchigo","Uchigo & Tochi","Ultimate Blade Work","Unachievable","Universe Hope Cloak",
+    "UQ Revive","Usage 1000 years","Uzumaki","Vav","Veshikun Taunting","Vimana",
+    "Virtual Black Hole","Vitality Sacrifice","Void Domain","Void Tech","Void Tech 0_2s","Volcano Domain",
+    "War Devil Aquarium Spear","War Devil Room","War Devil Spinal Cord","War Devil Uniform Sword",
+    "Weapon Combo","Wheels Industry","World Flower","Youre Next","Yud","Yud Aleph",
+    "Yud Bet","Za Warudo","Zayin","Zelkova Workshop"
 }
 
 -- Estado
@@ -152,7 +141,6 @@ local starkeiTarget
 local autoUse = false
 local autoStarkei = false
 
--- Função: cria lista única (por segurança)
 local function UniqueList(list)
     local seen, out = {}, {}
     for _, v in ipairs(list) do
@@ -164,7 +152,6 @@ local function UniqueList(list)
     return out
 end
 
--- REFRESH ÚNICO para TODOS os dropdowns (units + starkei target)
 local function RefreshAllDropdowns()
     allUnits = GetPlayerUnits()
     local uniqueUnits = UniqueList(allUnits)
@@ -200,7 +187,7 @@ UnitDropdown = Tab:CreateDropdown({
     end
 })
 
--- Input de busca de skill (filtra dinamicamente)
+-- Input de busca de skill
 local SearchInput = Tab:CreateInput({
     Name = "Search Skills",
     PlaceholderText = "Type to filter skills...",
@@ -209,7 +196,6 @@ local SearchInput = Tab:CreateInput({
     Callback = function(text)
         local q = string.lower(text or "")
         if q == "" then
-            -- Restaurar lista completa
             SafeRefreshDropdown(SkillDropdown, AllSkills, false)
             return
         end
@@ -239,13 +225,11 @@ SkillDropdown = Tab:CreateDropdown({
     end
 })
 
--- Seleciona padrão se disponível
 if #allUnits > 0 then
     selectedUnit = allUnits[1]
     SafeSetDropdown(UnitDropdown, selectedUnit)
 end
 
--- Disparo de Habilidade
 local function FireAbility(unitName, skillName)
     if not unitName or unitName == "" then return false, "Select a unit" end
     if not skillName or skillName == "" or skillName == "None" or skillName == "(no match)" then
@@ -311,7 +295,7 @@ Tab:CreateButton({
 
 -- Seção: Buffs rápidos
 Tab:CreateSection("Best Buffs")
-local BuffButtons = {"War Devil Uniform Sword", "Overdrive","River Of Death","Kaioken","Hakari Domain"}
+local BuffButtons = {"Road of Stars","War Devil Uniform Sword", "Overdrive","Kaioken","Flight Armor","Hakari Domain"}
 for _, skill in ipairs(BuffButtons) do
     Tab:CreateButton({
         Name = "Use " .. skill,
@@ -340,7 +324,6 @@ Tab:CreateButton({
     end
 })
 
--- IMPORTANTE: NÃO usar 'local' aqui para NÃO sombrear a variável
 StarkeiTargetDropdown = Tab:CreateDropdown({
     Name = "Select Unit for Starkei Skill",
     Options = allUnits,
@@ -407,11 +390,9 @@ Tab:CreateButton({
         unit.Name = "Starkei"
         Rayfield:Notify({ Title = "Converted", Content = oldName .. " → Starkei", Duration = 3 })
 
-        -- Atualiza tudo com a mesma rotina
         task.wait(0.5)
         RefreshAllDropdowns()
 
-        -- Se existir "Starkei" agora, seleciona nos dois dropdowns
         if UnitsFolder:FindFirstChild("Starkei") then
             selectedUnit = "Starkei"
             starkeiTarget = "Starkei"
